@@ -10,7 +10,6 @@ from datetime import datetime
 from app.core.database import get_db
 from app.core.security import get_current_active_user
 from app.models.user import User
-from app.models.reminder import Reminder
 from app.schemas.reminder import (
     ReminderCreate, 
     ReminderUpdate, 
@@ -18,6 +17,7 @@ from app.schemas.reminder import (
     VoiceReminderCreate,
     QuickReminderCreate
 )
+from app.repositories.reminder_repository import ReminderRepository
 
 router = APIRouter(prefix="/reminders", tags=["reminders"])
 
@@ -32,7 +32,8 @@ async def create_reminder(
     Create a new reminder
     创建新提醒
     """
-    new_reminder = Reminder(
+    new_reminder = ReminderRepository.create(
+        db=db,
         user_id=current_user.id,
         title=reminder_data.title,
         description=reminder_data.description,
@@ -40,14 +41,9 @@ async def create_reminder(
         recurrence_type=reminder_data.recurrence_type,
         recurrence_config=reminder_data.recurrence_config,
         first_remind_time=reminder_data.first_remind_time,
-        next_remind_time=reminder_data.first_remind_time,
         remind_channels=reminder_data.remind_channels,
         advance_minutes=reminder_data.advance_minutes
     )
-    
-    db.add(new_reminder)
-    db.commit()
-    db.refresh(new_reminder)
     
     return new_reminder
 
@@ -64,12 +60,13 @@ async def get_reminders(
     Get user's reminders
     获取用户的提醒列表
     """
-    query = db.query(Reminder).filter(Reminder.user_id == current_user.id)
-    
-    if is_active is not None:
-        query = query.filter(Reminder.is_active == is_active)
-    
-    reminders = query.order_by(Reminder.next_remind_time).offset(skip).limit(limit).all()
+    reminders = ReminderRepository.list_by_user(
+        db=db,
+        user_id=current_user.id,
+        skip=skip,
+        limit=limit,
+        is_active=is_active
+    )
     return reminders
 
 
@@ -83,10 +80,11 @@ async def get_reminder(
     Get reminder by ID
     获取提醒详情
     """
-    reminder = db.query(Reminder).filter(
-        Reminder.id == reminder_id,
-        Reminder.user_id == current_user.id
-    ).first()
+    reminder = ReminderRepository.get_by_id(
+        db=db,
+        reminder_id=reminder_id,
+        user_id=current_user.id
+    )
     
     if not reminder:
         raise HTTPException(
@@ -108,10 +106,11 @@ async def update_reminder(
     Update reminder
     更新提醒
     """
-    reminder = db.query(Reminder).filter(
-        Reminder.id == reminder_id,
-        Reminder.user_id == current_user.id
-    ).first()
+    reminder = ReminderRepository.get_by_id(
+        db=db,
+        reminder_id=reminder_id,
+        user_id=current_user.id
+    )
     
     if not reminder:
         raise HTTPException(
@@ -121,11 +120,7 @@ async def update_reminder(
     
     # Update fields
     update_data = reminder_data.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(reminder, field, value)
-    
-    db.commit()
-    db.refresh(reminder)
+    reminder = ReminderRepository.update(db=db, reminder=reminder, **update_data)
     
     return reminder
 
@@ -140,10 +135,11 @@ async def delete_reminder(
     Delete reminder
     删除提醒
     """
-    reminder = db.query(Reminder).filter(
-        Reminder.id == reminder_id,
-        Reminder.user_id == current_user.id
-    ).first()
+    reminder = ReminderRepository.get_by_id(
+        db=db,
+        reminder_id=reminder_id,
+        user_id=current_user.id
+    )
     
     if not reminder:
         raise HTTPException(
@@ -151,8 +147,7 @@ async def delete_reminder(
             detail="提醒不存在"
         )
     
-    db.delete(reminder)
-    db.commit()
+    ReminderRepository.delete(db=db, reminder=reminder)
     
     return None
 

@@ -14,6 +14,7 @@ from app.core.security import (
 )
 from app.models.user import User
 from app.schemas.user import UserCreate, UserLogin, UserResponse, Token, UserUpdate
+from app.repositories.user_repository import UserRepository
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -25,23 +26,19 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
     用户注册
     """
     # Check if user exists
-    existing_user = db.query(User).filter(User.phone == user_data.phone).first()
-    if existing_user:
+    if UserRepository.exists_by_phone(db=db, phone=user_data.phone):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="手机号已被注册"
         )
     
     # Create new user
-    new_user = User(
+    new_user = UserRepository.create(
+        db=db,
         phone=user_data.phone,
-        nickname=user_data.nickname or user_data.phone[-4:],  # Default nickname
-        hashed_password=get_password_hash(user_data.password)
+        hashed_password=get_password_hash(user_data.password),
+        nickname=user_data.nickname
     )
-    
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
     
     return new_user
 
@@ -53,7 +50,7 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
     用户登录
     """
     # Find user
-    user = db.query(User).filter(User.phone == user_data.phone).first()
+    user = UserRepository.get_by_phone(db=db, phone=user_data.phone)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -96,11 +93,6 @@ async def update_current_user(
     """
     # Update user fields
     update_fields = user_data.model_dump(exclude_unset=True)
+    updated_user = UserRepository.update(db=db, user=current_user, **update_fields)
     
-    for field, value in update_fields.items():
-        setattr(current_user, field, value)
-    
-    db.commit()
-    db.refresh(current_user)
-    
-    return current_user
+    return updated_user
