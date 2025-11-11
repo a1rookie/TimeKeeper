@@ -34,9 +34,10 @@ class Settings(BaseSettings):
         """Parse CORS origins from comma-separated string"""
         return [origin.strip() for origin in self.BACKEND_CORS_ORIGINS.split(",")]
     
-    # Push Services (to be configured later)
-    PUSH_SERVICE_APP_KEY: Optional[str] = None
-    PUSH_SERVICE_APP_SECRET: Optional[str] = None
+    # Push Services - 极光推送
+    JPUSH_APP_KEY: Optional[str] = None
+    JPUSH_MASTER_SECRET: Optional[str] = None
+    JPUSH_ENABLED: bool = False
     
     # Voice Recognition (to be configured later)
     ASR_APP_ID: Optional[str] = None
