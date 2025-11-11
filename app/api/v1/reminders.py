@@ -18,6 +18,7 @@ from app.schemas.reminder import (
     QuickReminderCreate
 )
 from app.repositories.reminder_repository import ReminderRepository
+from app.services.push_scheduler import create_push_task_for_reminder
 
 router = APIRouter(prefix="/reminders", tags=["reminders"])
 
@@ -42,8 +43,24 @@ async def create_reminder(
         recurrence_config=reminder_data.recurrence_config,
         first_remind_time=reminder_data.first_remind_time,
         remind_channels=reminder_data.remind_channels,
-        advance_minutes=reminder_data.advance_minutes
+        advance_minutes=reminder_data.advance_minutes,
+        priority=reminder_data.priority,
+        amount=reminder_data.amount,
+        location=reminder_data.location,
+        attachments=reminder_data.attachments
     )
+    
+    # 自动创建推送任务
+    try:
+        create_push_task_for_reminder(
+            db=db,
+            reminder_id=new_reminder.id,
+            user_id=current_user.id,
+            scheduled_time=new_reminder.next_remind_time
+        )
+    except Exception as e:
+        # 记录错误但不影响提醒创建
+        print(f"Warning: Failed to create push task: {e}")
     
     return new_reminder
 

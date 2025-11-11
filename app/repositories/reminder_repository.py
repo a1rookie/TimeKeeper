@@ -86,7 +86,11 @@ class ReminderRepository:
         recurrence_config: Optional[dict],
         first_remind_time: datetime,
         remind_channels: List[str],
-        advance_minutes: int
+        advance_minutes: int,
+        priority: int = 1,
+        amount: Optional[int] = None,
+        location: Optional[dict] = None,
+        attachments: Optional[List[dict]] = None
     ) -> Reminder:
         """
         创建提醒
@@ -102,6 +106,10 @@ class ReminderRepository:
             first_remind_time: 首次提醒时间
             remind_channels: 提醒渠道
             advance_minutes: 提前分钟数
+            priority: 优先级
+            amount: 金额（以分为单位）
+            location: 位置信息
+            attachments: 附件列表
             
         Returns:
             创建的提醒
@@ -111,12 +119,16 @@ class ReminderRepository:
             title=title,
             description=description,
             category=category,
+            priority=priority,
             recurrence_type=recurrence_type,
             recurrence_config=recurrence_config,
             first_remind_time=first_remind_time,
             next_remind_time=first_remind_time,
             remind_channels=remind_channels,
-            advance_minutes=advance_minutes
+            advance_minutes=advance_minutes,
+            amount=amount,
+            location=location,
+            attachments=attachments
         )
         
         db.add(reminder)

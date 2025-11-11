@@ -38,11 +38,13 @@ class PushTaskResponse(BaseModel):
     title: str
     content: str
     channels: List[str]
+    priority: int = 1
     scheduled_time: datetime
     sent_time: Optional[datetime] = None
     status: PushStatus
     error_message: Optional[str] = None
     retry_count: int
+    max_retries: int = 3
     push_response: Optional[dict] = None
     created_at: datetime
     updated_at: datetime
