@@ -36,11 +36,14 @@ class Reminder(Base):
     
     id = Column(Integer, primary_key=True, index=True, comment="提醒ID")
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True, comment="用户ID")
+    family_group_id = Column(Integer, ForeignKey("family_groups.id"), nullable=True, index=True, comment="家庭组ID")
+    template_id = Column(Integer, ForeignKey("reminder_templates.id"), nullable=True, comment="模板ID")
     
     # Basic info
-    title = Column(String(100), nullable=False, comment="提醒标题")
-    description = Column(String(500), nullable=True, comment="提醒描述")
+    title = Column(String(200), nullable=False, comment="提醒标题")
+    description = Column(String(1000), nullable=True, comment="提醒描述")
     category = Column(SQLEnum(ReminderCategory), nullable=False, comment="分类")
+    priority = Column(Integer, default=1, comment="优先级: 1=普通, 2=重要, 3=紧急")
     
     # Recurrence configuration
     recurrence_type = Column(SQLEnum(RecurrenceType), nullable=False, comment="周期类型")
@@ -61,6 +64,11 @@ class Reminder(Base):
     location = Column(JSON, nullable=True, comment="位置信息")
     attachments = Column(JSON, nullable=True, comment="附件列表")
     
+    # Additional info
+    amount = Column(Integer, nullable=True, comment="金额（以分为单位）")
+    location = Column(JSON, nullable=True, comment="位置信息(JSON)")
+    attachments = Column(JSON, nullable=True, comment="附件列表(JSON)")
+    
     # Status
     is_active = Column(Boolean, default=True, index=True, comment="是否启用")
     is_completed = Column(Boolean, default=False, comment="是否已完成")
@@ -72,6 +80,8 @@ class Reminder(Base):
     
     # Relationships
     user = relationship("User", back_populates="reminders")
+    family_group = relationship("FamilyGroup", back_populates="reminders")
+    template = relationship("ReminderTemplate", back_populates="reminders")
     push_tasks = relationship("PushTask", back_populates="reminder", cascade="all, delete-orphan")
     completions = relationship("ReminderCompletion", back_populates="reminder", cascade="all, delete-orphan")
     family_group = relationship("FamilyGroup", back_populates="reminders")

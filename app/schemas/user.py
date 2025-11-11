@@ -37,7 +37,9 @@ class UserResponse(UserBase):
     id: int
     avatar_url: Optional[str] = None
     settings: dict = {}
+    is_active: bool = True
     created_at: datetime
+    updated_at: datetime
     
     class Config:
         from_attributes = True

@@ -27,9 +27,10 @@ class PushTask(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True, comment="用户ID")
     
     # Task info
-    title = Column(String(100), nullable=False, comment="推送标题")
+    title = Column(String(200), nullable=False, comment="推送标题")
     content = Column(String(500), nullable=True, comment="推送内容")
     channels = Column(JSON, default=["app"], comment="推送渠道(JSON)")
+    priority = Column(Integer, default=1, comment="优先级: 1=普通, 2=重要, 3=紧急")
     
     # Scheduling
     scheduled_time = Column(DateTime(timezone=True), nullable=False, index=True, comment="计划推送时间")
