@@ -4,8 +4,6 @@ User API Endpoints
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from app.core.database import get_db
 from app.core.security import (
     get_password_hash, 
     verify_password, 
@@ -14,43 +12,50 @@ from app.core.security import (
 )
 from app.models.user import User
 from app.schemas.user import UserCreate, UserLogin, UserResponse, Token, UserUpdate
+from app.repositories import get_user_repository
 from app.repositories.user_repository import UserRepository
 
 router = APIRouter(prefix="/users", tags=["users"])
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def register(user_data: UserCreate, db: Session = Depends(get_db)):
+async def register(
+    user_data: UserCreate, 
+    user_repo: UserRepository = Depends(get_user_repository)
+):
     """
     User registration
     用户注册
     """
     # Check if user exists
-    if UserRepository.exists_by_phone(db=db, phone=user_data.phone):
+    if user_repo.exists_by_phone(user_data.phone):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="手机号已被注册"
         )
     
     # Create new user
-    new_user = UserRepository.create(
-        db=db,
+    hashed_password = get_password_hash(user_data.password)
+    new_user = user_repo.create(
         phone=user_data.phone,
-        hashed_password=get_password_hash(user_data.password),
-        nickname=user_data.nickname
+        nickname=user_data.nickname,
+        hashed_password=hashed_password
     )
     
     return new_user
 
 
 @router.post("/login", response_model=Token)
-async def login(user_data: UserLogin, db: Session = Depends(get_db)):
+async def login(
+    user_data: UserLogin, 
+    user_repo: UserRepository = Depends(get_user_repository)
+):
     """
     User login
     用户登录
     """
     # Find user
-    user = UserRepository.get_by_phone(db=db, phone=user_data.phone)
+    user = user_repo.get_by_phone(user_data.phone)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -85,7 +90,7 @@ async def get_current_user_info(
 async def update_current_user(
     user_data: UserUpdate,
     current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
+    user_repo: UserRepository = Depends(get_user_repository)
 ):
     """
     Update current user
@@ -93,6 +98,6 @@ async def update_current_user(
     """
     # Update user fields
     update_fields = user_data.model_dump(exclude_unset=True)
-    updated_user = UserRepository.update(db=db, user=current_user, **update_fields)
+    updated_user = user_repo.update(current_user, **update_fields)
     
     return updated_user

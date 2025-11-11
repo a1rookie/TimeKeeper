@@ -57,6 +57,12 @@ class Reminder(Base):
     # Reminder settings
     remind_channels = Column(JSON, default=["app"], comment="提醒渠道(JSON): app, sms, wechat, call")
     advance_minutes = Column(Integer, default=0, comment="提前提醒分钟数")
+    priority = Column(Integer, default=1, comment="优先级: 1=普通, 2=重要, 3=紧急")
+    
+    # Extended fields
+    amount = Column(Integer, nullable=True, comment="金额(分)")
+    location = Column(JSON, nullable=True, comment="位置信息")
+    attachments = Column(JSON, nullable=True, comment="附件列表")
     
     # Additional info
     amount = Column(Integer, nullable=True, comment="金额（以分为单位）")
@@ -78,5 +84,5 @@ class Reminder(Base):
     template = relationship("ReminderTemplate", back_populates="reminders")
     push_tasks = relationship("PushTask", back_populates="reminder", cascade="all, delete-orphan")
     completions = relationship("ReminderCompletion", back_populates="reminder", cascade="all, delete-orphan")
-    push_logs = relationship("PushLog", back_populates="reminder", cascade="all, delete-orphan")
-    template_usage_record = relationship("TemplateUsageRecord", back_populates="reminder", uselist=False)
+    family_group = relationship("FamilyGroup", back_populates="reminders")
+    template = relationship("ReminderTemplate", back_populates="reminders")

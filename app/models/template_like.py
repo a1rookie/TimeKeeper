@@ -1,21 +1,20 @@
 """
-TemplateLike Model
+Template Like Model
 模板点赞模型
 """
-
-from sqlalchemy import Column, BigInteger, DateTime, ForeignKey, UniqueConstraint
-from sqlalchemy.sql import func
+from sqlalchemy import Column, Integer, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 from app.core.database import Base
 
 
 class TemplateLike(Base):
-    """TemplateLike table - 模板点赞表"""
+    """模板点赞表"""
     __tablename__ = "template_likes"
     
-    id = Column(BigInteger, primary_key=True, index=True, comment="点赞ID")
-    template_share_id = Column(BigInteger, ForeignKey("template_shares.id"), nullable=False, comment="分享ID")
-    user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False, comment="用户ID")
+    id = Column(Integer, primary_key=True, index=True, comment="点赞ID")
+    template_share_id = Column(Integer, ForeignKey("template_shares.id"), nullable=False, comment="分享模板ID")
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, comment="点赞用户ID")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), comment="点赞时间")
     
     # Relationships

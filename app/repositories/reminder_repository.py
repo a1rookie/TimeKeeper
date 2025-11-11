@@ -1,172 +1,142 @@
 """
-Reminder Repository - SQLAlchemy 2.0
+Reminder Repository
 提醒数据访问层
 """
 
 from typing import List, Optional
-from datetime import datetime
-from sqlalchemy import select, func, and_
 from sqlalchemy.orm import Session
-
-from app.models.reminder import Reminder
+from sqlalchemy import and_
+from datetime import datetime
+from app.models.reminder import Reminder, ReminderCategory, RecurrenceType
 
 
 class ReminderRepository:
-    """提醒仓储类 - 使用SQLAlchemy 2.0语法"""
+    """提醒数据仓库"""
     
-    @staticmethod
-    def get_by_id(db: Session, reminder_id: int, user_id: int) -> Optional[Reminder]:
-        """
-        根据ID获取提醒（带用户权限检查）
-        
-        Args:
-            db: 数据库会话
-            reminder_id: 提醒ID
-            user_id: 用户ID
-            
-        Returns:
-            提醒或None
-        """
-        stmt = select(Reminder).where(
+    def __init__(self, db: Session):
+        self.db = db
+    
+    def get_by_id(self, reminder_id: int, user_id: int) -> Optional[Reminder]:
+        """根据ID获取提醒（验证所有权）"""
+        return self.db.query(Reminder).filter(
             and_(
                 Reminder.id == reminder_id,
                 Reminder.user_id == user_id
             )
-        )
-        result = db.execute(stmt)
-        return result.scalar_one_or_none()
+        ).first()
     
-    @staticmethod
-    def list_by_user(
-        db: Session,
-        user_id: int,
-        skip: int = 0,
-        limit: int = 20,
-        is_active: Optional[bool] = None
+    def get_user_reminders(
+        self, 
+        user_id: int, 
+        skip: int = 0, 
+        limit: int = 100,
+        is_active: Optional[bool] = None,
+        category: Optional[ReminderCategory] = None
     ) -> List[Reminder]:
-        """
-        获取用户的提醒列表
+        """获取用户的提醒列表"""
+        query = self.db.query(Reminder).filter(Reminder.user_id == user_id)
         
-        Args:
-            db: 数据库会话
-            user_id: 用户ID
-            skip: 跳过记录数
-            limit: 返回记录数
-            is_active: 是否活跃（可选筛选条件）
-            
-        Returns:
-            提醒列表
-        """
-        # 构建查询条件
-        conditions = [Reminder.user_id == user_id]
         if is_active is not None:
-            conditions.append(Reminder.is_active == is_active)
+            query = query.filter(Reminder.is_active == is_active)
         
-        # 查询列表
-        stmt = (
-            select(Reminder)
-            .where(and_(*conditions))
-            .order_by(Reminder.next_remind_time)
-            .offset(skip)
-            .limit(limit)
-        )
-        result = db.execute(stmt)
-        reminders = result.scalars().all()
+        if category is not None:
+            query = query.filter(Reminder.category == category)
         
-        return reminders
+        return query.order_by(Reminder.next_remind_time).offset(skip).limit(limit).all()
     
-    @staticmethod
     def create(
-        db: Session,
+        self,
         user_id: int,
         title: str,
-        description: Optional[str],
-        category: str,
-        recurrence_type: str,
-        recurrence_config: Optional[dict],
+        category: ReminderCategory,
+        recurrence_type: RecurrenceType,
         first_remind_time: datetime,
-        remind_channels: List[str],
-        advance_minutes: int,
+        description: Optional[str] = None,
+        recurrence_config: dict = None,
+        remind_channels: List[str] = None,
+        advance_minutes: int = 0,
         priority: int = 1,
         amount: Optional[int] = None,
         location: Optional[dict] = None,
-        attachments: Optional[List[dict]] = None
+        attachments: Optional[list] = None
     ) -> Reminder:
-        """
-        创建提醒
-        
-        Args:
-            db: 数据库会话
-            user_id: 用户ID
-            title: 标题
-            description: 描述
-            category: 分类
-            recurrence_type: 重复类型
-            recurrence_config: 重复配置
-            first_remind_time: 首次提醒时间
-            remind_channels: 提醒渠道
-            advance_minutes: 提前分钟数
-            priority: 优先级
-            amount: 金额（以分为单位）
-            location: 位置信息
-            attachments: 附件列表
-            
-        Returns:
-            创建的提醒
-        """
-        reminder = Reminder(
+        """创建新提醒"""
+        new_reminder = Reminder(
             user_id=user_id,
             title=title,
             description=description,
             category=category,
-            priority=priority,
             recurrence_type=recurrence_type,
-            recurrence_config=recurrence_config,
+            recurrence_config=recurrence_config or {},
             first_remind_time=first_remind_time,
             next_remind_time=first_remind_time,
-            remind_channels=remind_channels,
+            remind_channels=remind_channels or ["app"],
             advance_minutes=advance_minutes,
+            priority=priority,
             amount=amount,
             location=location,
             attachments=attachments
         )
         
-        db.add(reminder)
-        db.commit()
-        db.refresh(reminder)
-        
-        return reminder
+        self.db.add(new_reminder)
+        self.db.commit()
+        self.db.refresh(new_reminder)
+        return new_reminder
     
-    @staticmethod
-    def update(db: Session, reminder: Reminder, **kwargs) -> Reminder:
-        """
-        更新提醒
-        
-        Args:
-            db: 数据库会话
-            reminder: 提醒对象
-            **kwargs: 要更新的字段
-            
-        Returns:
-            更新后的提醒
-        """
+    def update(self, reminder: Reminder, **kwargs) -> Reminder:
+        """更新提醒"""
         for field, value in kwargs.items():
-            if hasattr(reminder, field):
+            if hasattr(reminder, field) and value is not None:
                 setattr(reminder, field, value)
         
-        db.commit()
-        db.refresh(reminder)
-        
+        self.db.commit()
+        self.db.refresh(reminder)
         return reminder
     
-    @staticmethod
-    def delete(db: Session, reminder: Reminder) -> None:
-        """
-        删除提醒
+    def delete(self, reminder: Reminder) -> None:
+        """删除提醒"""
+        self.db.delete(reminder)
+        self.db.commit()
+    
+    def mark_completed(self, reminder: Reminder, user_id: int) -> Reminder:
+        """标记提醒为已完成，并返回更新后的提醒"""
+        reminder.is_completed = True
+        reminder.completed_at = datetime.now()
+        self.db.commit()
+        self.db.refresh(reminder)
+        return reminder
+    
+    def mark_uncompleted(self, reminder: Reminder) -> Reminder:
+        """取消完成状态"""
+        reminder.is_completed = False
+        reminder.completed_at = None
+        self.db.commit()
+        self.db.refresh(reminder)
+        return reminder
+    
+    def update_next_remind_time(self, reminder: Reminder, next_time: datetime) -> Reminder:
+        """更新下次提醒时间"""
+        reminder.next_remind_time = next_time
+        reminder.last_remind_time = reminder.completed_at or datetime.now()
+        self.db.commit()
+        self.db.refresh(reminder)
+        return reminder
+    
+    def get_pending_reminders(self, before_time: datetime) -> List[Reminder]:
+        """获取待推送的提醒（下次提醒时间在指定时间之前且未完成）"""
+        return self.db.query(Reminder).filter(
+            and_(
+                Reminder.is_active == True,
+                Reminder.is_completed == False,
+                Reminder.next_remind_time <= before_time
+            )
+        ).all()
+    
+    def count_user_reminders(self, user_id: int, is_active: Optional[bool] = None) -> int:
+        """统计用户提醒数量"""
+        query = self.db.query(Reminder).filter(Reminder.user_id == user_id)
         
-        Args:
-            db: 数据库会话
-            reminder: 提醒对象
-        """
-        db.delete(reminder)
-        db.commit()
+        if is_active is not None:
+            query = query.filter(Reminder.is_active == is_active)
+        
+        return query.count()

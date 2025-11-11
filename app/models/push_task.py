@@ -41,6 +41,8 @@ class PushTask(Base):
     error_message = Column(String(500), nullable=True, comment="错误信息")
     retry_count = Column(Integer, default=0, comment="重试次数")
     max_retries = Column(Integer, default=3, comment="最大重试次数")
+    priority = Column(Integer, default=1, comment="优先级")
+    executed_at = Column(DateTime(timezone=True), nullable=True, comment="执行时间")
     
     # Response data
     push_response = Column(JSON, nullable=True, comment="推送服务响应(JSON)")
