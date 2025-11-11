@@ -25,3 +25,4 @@ class User(Base):
     # Relationships
     reminders = relationship("Reminder", back_populates="user", cascade="all, delete-orphan")
     push_tasks = relationship("PushTask", back_populates="user", cascade="all, delete-orphan")
+    reminder_completions = relationship("ReminderCompletion", back_populates="user", cascade="all, delete-orphan")

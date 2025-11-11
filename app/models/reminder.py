@@ -54,9 +54,17 @@ class Reminder(Base):
     # Reminder settings
     remind_channels = Column(JSON, default=["app"], comment="提醒渠道(JSON): app, sms, wechat, call")
     advance_minutes = Column(Integer, default=0, comment="提前提醒分钟数")
+    priority = Column(Integer, default=1, comment="优先级: 1=普通, 2=重要, 3=紧急")
+    
+    # Extended fields
+    amount = Column(Integer, nullable=True, comment="金额(分)")
+    location = Column(JSON, nullable=True, comment="位置信息")
+    attachments = Column(JSON, nullable=True, comment="附件列表")
     
     # Status
     is_active = Column(Boolean, default=True, index=True, comment="是否启用")
+    is_completed = Column(Boolean, default=False, comment="是否已完成")
+    completed_at = Column(DateTime(timezone=True), nullable=True, comment="完成时间")
     
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now(), comment="创建时间")
@@ -65,3 +73,4 @@ class Reminder(Base):
     # Relationships
     user = relationship("User", back_populates="reminders")
     push_tasks = relationship("PushTask", back_populates="reminder", cascade="all, delete-orphan")
+    completions = relationship("ReminderCompletion", back_populates="reminder", cascade="all, delete-orphan")
