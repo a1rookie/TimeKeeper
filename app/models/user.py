@@ -26,3 +26,18 @@ class User(Base):
     reminders = relationship("Reminder", back_populates="user", cascade="all, delete-orphan")
     push_tasks = relationship("PushTask", back_populates="user", cascade="all, delete-orphan")
     reminder_completions = relationship("ReminderCompletion", back_populates="user", cascade="all, delete-orphan")
+    
+    # Family relationships
+    created_family_groups = relationship("FamilyGroup", back_populates="creator", foreign_keys="FamilyGroup.creator_id")
+    family_memberships = relationship("FamilyMember", back_populates="user", cascade="all, delete-orphan")
+    
+    # Template relationships
+    custom_templates = relationship("UserCustomTemplate", back_populates="user", cascade="all, delete-orphan")
+    template_shares = relationship("TemplateShare", back_populates="owner", cascade="all, delete-orphan")
+    template_usage_records = relationship("TemplateUsageRecord", back_populates="user", cascade="all, delete-orphan")
+    template_likes = relationship("TemplateLike", back_populates="user", cascade="all, delete-orphan")
+    
+    # Other relationships
+    voice_inputs = relationship("VoiceInput", back_populates="user", cascade="all, delete-orphan")
+    push_logs = relationship("PushLog", back_populates="user", cascade="all, delete-orphan")
+    behaviors = relationship("UserBehavior", back_populates="user", cascade="all, delete-orphan")
