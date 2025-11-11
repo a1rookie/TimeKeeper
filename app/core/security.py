@@ -81,7 +81,7 @@ async def get_current_user(
         HTTPException: 401 if token is invalid or user not found
     """
     # Import here to avoid circular dependency
-    from app.models.user import User
+    from app.repositories.user_repository import UserRepository
     
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -101,8 +101,8 @@ async def get_current_user(
     except JWTError:
         raise credentials_exception
     
-    # Get user from database
-    user = db.query(User).filter(User.id == user_id).first()
+    # Get user from database using Repository
+    user = UserRepository.get_by_id(db=db, user_id=user_id)
     
     if user is None:
         raise credentials_exception

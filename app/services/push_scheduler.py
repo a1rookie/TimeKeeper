@@ -7,11 +7,11 @@ import asyncio
 from datetime import datetime, timedelta
 from typing import List, Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
 
 from app.core.database import SessionLocal
-from app.models.push_task import PushTask, PushStatus
+from app.models.push_task import PushStatus
 from app.models.reminder import Reminder
+from app.repositories.push_task_repository import PushTaskRepository
 from app.services.jpush_service import push_reminder_notification
 from app.core.config import settings
 import logging
@@ -63,12 +63,10 @@ class PushScheduler:
         try:
             # 查找需要推送的任务
             now = datetime.now()
-            pending_tasks = db.query(PushTask).filter(
-                and_(
-                    PushTask.status == PushStatus.PENDING,
-                    PushTask.scheduled_time <= now
-                )
-            ).limit(100).all()
+            pending_tasks = PushTaskRepository.get_pending_tasks(
+                db=db,
+                before_time=now
+            )
             
             if not pending_tasks:
                 logger.debug("No pending push tasks found")
@@ -88,13 +86,13 @@ class PushScheduler:
         finally:
             db.close()
     
-    async def _execute_push_task(self, db: Session, task: PushTask):
+    async def _execute_push_task(self, db: Session, task):
         """
         执行单个推送任务
         
         Args:
             db: 数据库会话
-            task: 推送任务
+            task: 推送任务对象
         """
         try:
             logger.info(f"Executing push task {task.id} for user {task.user_id}")
@@ -102,8 +100,12 @@ class PushScheduler:
             # 检查推送是否启用
             if not settings.JPUSH_ENABLED:
                 logger.warning(f"JPush disabled, skipping task {task.id}")
-                task.status = PushStatus.CANCELLED
-                task.error_message = "JPush is disabled"
+                PushTaskRepository.update(
+                    db=db,
+                    task=task,
+                    status=PushStatus.CANCELLED,
+                    error_message="JPush is disabled"
+                )
                 return
             
             # 执行推送
@@ -116,36 +118,44 @@ class PushScheduler:
             
             # 更新任务状态
             if result.get("success"):
-                task.status = PushStatus.SENT
-                task.sent_time = datetime.now()
-                task.push_response = result
+                PushTaskRepository.mark_as_sent(db=db, task=task, push_response=result)
                 logger.info(f"Push task {task.id} sent successfully")
             else:
                 # 推送失败，检查是否需要重试
-                task.retry_count += 1
-                
-                if task.retry_count >= 3:
-                    task.status = PushStatus.FAILED
-                    task.error_message = result.get("error", "Unknown error")
-                    logger.error(f"Push task {task.id} failed after {task.retry_count} retries")
+                if task.retry_count >= 2:  # 已经重试2次，总共3次
+                    PushTaskRepository.mark_as_failed(
+                        db=db,
+                        task=task,
+                        error_message=result.get("error", "Unknown error")
+                    )
+                    logger.error(f"Push task {task.id} failed after {task.retry_count + 1} attempts")
                 else:
                     # 延迟重试（保持PENDING状态，更新scheduled_time）
-                    task.scheduled_time = datetime.now() + timedelta(minutes=5 * task.retry_count)
-                    task.error_message = f"Retry {task.retry_count}: {result.get('error', 'Unknown error')}"
-                    logger.warning(f"Push task {task.id} failed, will retry at {task.scheduled_time}")
-                
-                task.push_response = result
+                    retry_minutes = 5 * (task.retry_count + 1)
+                    PushTaskRepository.update(
+                        db=db,
+                        task=task,
+                        scheduled_time=datetime.now() + timedelta(minutes=retry_minutes),
+                        error_message=f"Retry {task.retry_count + 1}: {result.get('error', 'Unknown error')}",
+                        push_response=result
+                    )
+                    task.retry_count += 1
+                    logger.warning(f"Push task {task.id} failed, will retry in {retry_minutes} minutes")
         
         except Exception as e:
             logger.error(f"Error executing push task {task.id}: {e}", exc_info=True)
-            task.retry_count += 1
             
-            if task.retry_count >= 3:
-                task.status = PushStatus.FAILED
-                task.error_message = str(e)
+            if task.retry_count >= 2:
+                PushTaskRepository.mark_as_failed(db=db, task=task, error_message=str(e))
             else:
-                task.scheduled_time = datetime.now() + timedelta(minutes=5 * task.retry_count)
-                task.error_message = f"Exception retry {task.retry_count}: {str(e)}"
+                retry_minutes = 5 * (task.retry_count + 1)
+                PushTaskRepository.update(
+                    db=db,
+                    task=task,
+                    scheduled_time=datetime.now() + timedelta(minutes=retry_minutes),
+                    error_message=f"Exception retry {task.retry_count + 1}: {str(e)}"
+                )
+                task.retry_count += 1
 
 
 def create_push_task_for_reminder(
@@ -153,7 +163,7 @@ def create_push_task_for_reminder(
     reminder_id: int,
     user_id: int,
     scheduled_time: datetime
-) -> PushTask:
+):
     """
     为提醒创建推送任务
     
@@ -166,25 +176,25 @@ def create_push_task_for_reminder(
     Returns:
         创建的推送任务
     """
-    # 获取提醒信息
-    reminder = db.query(Reminder).filter(Reminder.id == reminder_id).first()
+    # 获取提醒信息（使用SQLAlchemy 2.0语法）
+    from sqlalchemy import select
+    stmt = select(Reminder).where(Reminder.id == reminder_id)
+    result = db.execute(stmt)
+    reminder = result.scalar_one_or_none()
+    
     if not reminder:
         raise ValueError(f"Reminder {reminder_id} not found")
     
-    # 创建推送任务
-    push_task = PushTask(
-        reminder_id=reminder_id,
+    # 使用Repository创建推送任务
+    push_task = PushTaskRepository.create(
+        db=db,
         user_id=user_id,
+        reminder_id=reminder_id,
         title=reminder.title,
         content=reminder.description or f"提醒：{reminder.title}",
         channels=reminder.remind_channels,
-        scheduled_time=scheduled_time,
-        status=PushStatus.PENDING
+        scheduled_time=scheduled_time
     )
-    
-    db.add(push_task)
-    db.commit()
-    db.refresh(push_task)
     
     logger.info(f"Created push task {push_task.id} for reminder {reminder_id}")
     
@@ -194,7 +204,7 @@ def create_push_task_for_reminder(
 def batch_create_push_tasks(
     db: Session,
     tasks_data: List[dict]
-) -> List[PushTask]:
+) -> List:
     """
     批量创建推送任务
     

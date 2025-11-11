@@ -5,19 +5,19 @@ Push Task API Endpoints
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from typing import List, Optional
-from datetime import datetime
+from typing import Optional
 
 from app.core.database import get_db
 from app.core.security import get_current_active_user
 from app.models.user import User
-from app.models.push_task import PushTask, PushStatus
+from app.models.push_task import PushStatus
 from app.schemas.push_task import (
     PushTaskCreate,
     PushTaskResponse,
     PushTaskUpdate,
     PushTaskList
 )
+from app.repositories.push_task_repository import PushTaskRepository
 from app.services.push_scheduler import create_push_task_for_reminder
 
 router = APIRouter(prefix="/push-tasks", tags=["push-tasks"])
@@ -35,21 +35,14 @@ async def list_push_tasks(
     """
     获取推送任务列表
     """
-    query = db.query(PushTask).filter(PushTask.user_id == current_user.id)
-    
-    # 状态筛选
-    if status:
-        query = query.filter(PushTask.status == status)
-    
-    # 提醒ID筛选
-    if reminder_id:
-        query = query.filter(PushTask.reminder_id == reminder_id)
-    
-    # 总数
-    total = query.count()
-    
-    # 分页
-    tasks = query.order_by(PushTask.scheduled_time.desc()).offset(skip).limit(limit).all()
+    tasks, total = PushTaskRepository.list_by_user(
+        db=db,
+        user_id=current_user.id,
+        skip=skip,
+        limit=limit,
+        status=status,
+        reminder_id=reminder_id
+    )
     
     return {
         "tasks": tasks,
@@ -68,10 +61,11 @@ async def get_push_task(
     """
     获取单个推送任务详情
     """
-    task = db.query(PushTask).filter(
-        PushTask.id == task_id,
-        PushTask.user_id == current_user.id
-    ).first()
+    task = PushTaskRepository.get_by_id(
+        db=db,
+        task_id=task_id,
+        user_id=current_user.id
+    )
     
     if not task:
         raise HTTPException(
@@ -121,10 +115,11 @@ async def update_push_task(
     """
     更新推送任务
     """
-    task = db.query(PushTask).filter(
-        PushTask.id == task_id,
-        PushTask.user_id == current_user.id
-    ).first()
+    task = PushTaskRepository.get_by_id(
+        db=db,
+        task_id=task_id,
+        user_id=current_user.id
+    )
     
     if not task:
         raise HTTPException(
@@ -140,17 +135,15 @@ async def update_push_task(
         )
     
     # 更新字段
+    update_data = {}
     if task_data.scheduled_time is not None:
-        task.scheduled_time = task_data.scheduled_time
-    
+        update_data["scheduled_time"] = task_data.scheduled_time
     if task_data.title is not None:
-        task.title = task_data.title
-    
+        update_data["title"] = task_data.title
     if task_data.content is not None:
-        task.content = task_data.content
+        update_data["content"] = task_data.content
     
-    db.commit()
-    db.refresh(task)
+    task = PushTaskRepository.update(db=db, task=task, **update_data)
     
     return task
 
@@ -164,10 +157,11 @@ async def cancel_push_task(
     """
     取消推送任务（将状态设为CANCELLED）
     """
-    task = db.query(PushTask).filter(
-        PushTask.id == task_id,
-        PushTask.user_id == current_user.id
-    ).first()
+    task = PushTaskRepository.get_by_id(
+        db=db,
+        task_id=task_id,
+        user_id=current_user.id
+    )
     
     if not task:
         raise HTTPException(
@@ -182,8 +176,7 @@ async def cancel_push_task(
             detail="Can only cancel pending tasks"
         )
     
-    task.status = PushStatus.CANCELLED
-    db.commit()
+    PushTaskRepository.cancel(db=db, task=task)
 
 
 @router.post("/{task_id}/retry", response_model=PushTaskResponse)
@@ -195,10 +188,11 @@ async def retry_push_task(
     """
     重试失败的推送任务
     """
-    task = db.query(PushTask).filter(
-        PushTask.id == task_id,
-        PushTask.user_id == current_user.id
-    ).first()
+    task = PushTaskRepository.get_by_id(
+        db=db,
+        task_id=task_id,
+        user_id=current_user.id
+    )
     
     if not task:
         raise HTTPException(
@@ -213,14 +207,8 @@ async def retry_push_task(
             detail="Can only retry failed tasks"
         )
     
-    # 重置状态
-    task.status = PushStatus.PENDING
-    task.scheduled_time = datetime.now()
-    task.retry_count = 0
-    task.error_message = None
-    
-    db.commit()
-    db.refresh(task)
+    # 重置状态以便重试
+    task = PushTaskRepository.reset_for_retry(db=db, task=task)
     
     return task
 
@@ -233,19 +221,4 @@ async def get_push_stats(
     """
     获取推送统计信息
     """
-    user_tasks = db.query(PushTask).filter(PushTask.user_id == current_user.id)
-    
-    total = user_tasks.count()
-    pending = user_tasks.filter(PushTask.status == PushStatus.PENDING).count()
-    sent = user_tasks.filter(PushTask.status == PushStatus.SENT).count()
-    failed = user_tasks.filter(PushTask.status == PushStatus.FAILED).count()
-    cancelled = user_tasks.filter(PushTask.status == PushStatus.CANCELLED).count()
-    
-    return {
-        "total": total,
-        "pending": pending,
-        "sent": sent,
-        "failed": failed,
-        "cancelled": cancelled,
-        "success_rate": round(sent / total * 100, 2) if total > 0 else 0
-    }
+    return PushTaskRepository.get_statistics(db=db, user_id=current_user.id)
