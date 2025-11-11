@@ -53,3 +53,4 @@ class PushTask(Base):
     # Relationships
     reminder = relationship("Reminder", back_populates="push_tasks")
     user = relationship("User", back_populates="push_tasks")
+    logs = relationship("PushLog", back_populates="task", cascade="all, delete-orphan")

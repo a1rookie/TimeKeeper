@@ -74,3 +74,5 @@ class Reminder(Base):
     user = relationship("User", back_populates="reminders")
     push_tasks = relationship("PushTask", back_populates="reminder", cascade="all, delete-orphan")
     completions = relationship("ReminderCompletion", back_populates="reminder", cascade="all, delete-orphan")
+    family_group = relationship("FamilyGroup", back_populates="reminders")
+    template = relationship("ReminderTemplate", back_populates="reminders")
