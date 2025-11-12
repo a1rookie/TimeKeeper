@@ -29,3 +29,4 @@ class UserCustomTemplate(Base):
     # Relationships
     user = relationship("User", back_populates="custom_templates")
     base_template = relationship("ReminderTemplate", back_populates="custom_templates")
+    shares = relationship("TemplateShare", back_populates="template", cascade="all, delete-orphan")
