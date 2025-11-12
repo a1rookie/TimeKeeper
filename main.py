@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.api.v1 import users, reminders, push_tasks
+from app.api.v1 import users, reminders, push_tasks, family, completions, templates
 from app.services.push_scheduler import get_scheduler
 import logging
 
@@ -71,6 +71,9 @@ app.add_middleware(
 app.include_router(users.router, prefix="/api/v1")
 app.include_router(reminders.router, prefix="/api/v1")
 app.include_router(push_tasks.router, prefix="/api/v1")
+app.include_router(family.router, prefix="/api/v1/family", tags=["Family"])
+app.include_router(completions.router, prefix="/api/v1", tags=["Completions"])
+app.include_router(templates.router, prefix="/api/v1", tags=["Templates"])
 
 
 @app.get("/")
