@@ -2,11 +2,19 @@
 Reminder Completion Model
 提醒完成记录模型
 """
-
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
+import enum
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Enum
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.core.database import Base
+
+
+class CompletionStatus(str, enum.Enum):
+    """完成状态枚举"""
+    COMPLETED = "completed"
+    DELAYED = "delayed"
+    SKIPPED = "skipped"
+    MISSED = "missed"
 
 
 class ReminderCompletion(Base):
@@ -20,7 +28,7 @@ class ReminderCompletion(Base):
     # Completion info (使用数据库现有字段名)
     scheduled_time = Column(DateTime(timezone=True), nullable=True, comment="计划时间")
     completed_time = Column(DateTime(timezone=True), nullable=False, index=True, comment="实际完成时间")
-    status = Column(String(20), default="completed", comment="状态")
+    status = Column(Enum(CompletionStatus), default=CompletionStatus.COMPLETED, comment="状态")
     delay_minutes = Column(Integer, default=0, comment="延迟分钟数")
     note = Column(String(500), nullable=True, comment="完成备注")
     
