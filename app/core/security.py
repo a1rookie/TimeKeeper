@@ -8,31 +8,46 @@ from typing import Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+import bcrypt
 from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.database import get_db
 
-# Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify password against hash"""
-    return pwd_context.verify(plain_password, hashed_password)
+    """Verify password against hash using bcrypt directly"""
+    # Truncate password to 72 bytes
+    password_bytes = plain_password.encode('utf-8')[:72]
+    hash_bytes = hashed_password.encode('utf-8')
+    return bcrypt.checkpw(password_bytes, hash_bytes)
 
 
 def get_password_hash(password: str) -> str:
-    """Generate password hash"""
-    # Truncate password to 72 bytes for bcrypt compatibility
-    return pwd_context.hash(password[:72])
+    """Generate password hash using bcrypt directly"""
+    # Truncate password to 72 bytes
+    password_bytes = password.encode('utf-8')[:72]
+    hashed = bcrypt.hashpw(password_bytes, bcrypt.gensalt(rounds=12))
+    return hashed.decode('utf-8')
 
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token(
+    data: dict,
+    expires_delta: Optional[timedelta] = None,
+    device_type: str = "web"
+) -> tuple[str, str]:
     """
     Create JWT access token
     创建 JWT 访问令牌
+    
+    Args:
+        data: Token payload data
+        expires_delta: Custom expiration time
+        device_type: Device type (web/ios/android/desktop)
+        
+    Returns:
+        Tuple of (token, jti)
     """
+    import uuid
+    
     to_encode = data.copy()
     
     if expires_delta:
@@ -40,10 +55,19 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     else:
         expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     
-    to_encode.update({"exp": expire})
+    # 生成唯一的 JTI (JWT ID)
+    jti = str(uuid.uuid4())
+    
+    to_encode.update({
+        "exp": expire,
+        "jti": jti,
+        "device_type": device_type,
+        "iat": datetime.utcnow()
+    })
+    
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     
-    return encoded_jwt
+    return encoded_jwt, jti
 
 
 def verify_token(token: str) -> Optional[dict]:
@@ -70,6 +94,12 @@ async def get_current_user(
     Get current authenticated user from JWT token
     从 JWT 令牌获取当前认证用户
     
+    验证流程：
+    1. 解析JWT token
+    2. 检查token是否在黑名单（被踢出）
+    3. 检查是否为当前设备的活跃会话
+    4. 从数据库获取用户信息
+    
     Args:
         credentials: HTTP Authorization header with Bearer token
         db: Database session
@@ -78,7 +108,7 @@ async def get_current_user(
         User object
         
     Raises:
-        HTTPException: 401 if token is invalid or user not found
+        HTTPException: 401 if token is invalid, revoked, or session is inactive
     """
     # Import here to avoid circular dependency
     from app.repositories.user_repository import UserRepository
@@ -89,20 +119,49 @@ async def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
     
+    session_expired_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="会话已过期或在其他设备登录，请重新登录",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    
     token = credentials.credentials
     
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         user_id: int = payload.get("user_id")
+        jti: str = payload.get("jti")
+        device_type: str = payload.get("device_type", "web")
         
-        if user_id is None:
+        if user_id is None or jti is None:
             raise credentials_exception
+        
+        # 检查会话状态（如果Redis可用）
+        try:
+            from app.services.session_manager import get_session_manager
+            session_manager = get_session_manager()
+            
+            # 1. 检查token是否在黑名单
+            if session_manager.is_token_blacklisted(jti):
+                raise session_expired_exception
+            
+            # 2. 检查是否为活跃会话（是否被其他登录踢出）
+            if not session_manager.is_active_session(user_id, device_type, jti):
+                raise session_expired_exception
+            
+            # 3. 可选：延长会话（用户活跃则自动续期）
+            # session_manager.extend_session(user_id, device_type)
+            
+        except RuntimeError:
+            # Redis未初始化，跳过会话检查（降级为仅JWT验证）
+            pass
             
     except JWTError:
         raise credentials_exception
     
     # Get user from database using Repository
-    user = UserRepository.get_by_id(db=db, user_id=user_id)
+    user_repo = UserRepository(db)
+    user = user_repo.get_by_id(user_id)
     
     if user is None:
         raise credentials_exception

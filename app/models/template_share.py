@@ -37,7 +37,5 @@ class TemplateShare(Base):
     # Relationships
     user = relationship("User", back_populates="template_shares")
     template = relationship("UserCustomTemplate", back_populates="shares")
-    usage_records = relationship("TemplateUsageRecord", back_populates="template_share")
-    likes = relationship("TemplateLike", back_populates="template_share")
     usage_records = relationship("TemplateUsageRecord", back_populates="template_share", cascade="all, delete-orphan")
     likes = relationship("TemplateLike", back_populates="template_share", cascade="all, delete-orphan")
