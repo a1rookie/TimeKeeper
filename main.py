@@ -4,8 +4,10 @@ TimeKeeper Backend Application
 """
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 from app.core.config import settings
 from app.core.logging_config import setup_logging
 from app.api.v1 import users, reminders, push_tasks, family, completions, templates, debug
@@ -98,6 +100,62 @@ app.include_router(push_tasks.router, prefix="/api/v1", tags=["Push"])
 app.include_router(family.router, prefix="/api/v1/family", tags=["Family"])
 app.include_router(completions.router, prefix="/api/v1", tags=["Completions"])
 app.include_router(templates.router, prefix="/api/v1", tags=["Templates"])
+
+
+# 全局异常处理器 - 统一返回格式
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """
+    处理 HTTPException，返回统一格式
+    """
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "code": exc.status_code,
+            "message": exc.detail,
+            "data": None
+        }
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """
+    处理 Pydantic 验证错误，返回统一格式
+    """
+    # 提取第一个错误信息
+    error_msg = "参数验证失败"
+    if exc.errors():
+        first_error = exc.errors()[0]
+        field = " -> ".join(str(loc) for loc in first_error.get("loc", []))
+        msg = first_error.get("msg", "")
+        error_msg = f"{field}: {msg}"
+    
+    return JSONResponse(
+        status_code=422,
+        content={
+            "code": 422,
+            "message": error_msg,
+            "data": {"errors": exc.errors()}
+        }
+    )
+
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    """
+    处理所有未捕获的异常，返回统一格式
+    """
+    logger.exception(f"Unhandled exception: {exc}")
+    
+    return JSONResponse(
+        status_code=500,
+        content={
+            "code": 500,
+            "message": "服务器内部错误" if not settings.DEBUG else str(exc),
+            "data": None
+        }
+    )
 
 
 @app.get("/")

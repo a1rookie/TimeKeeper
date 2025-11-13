@@ -5,6 +5,7 @@ Family API
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from app.schemas.response import ApiResponse
 
 from app.core.database import get_db
 from app.core.security import get_current_user
@@ -27,7 +28,7 @@ router = APIRouter()
 
 # ==================== 家庭组管理 ====================
 
-@router.post("/groups", response_model=FamilyGroupDetail, status_code=status.HTTP_201_CREATED)
+@router.post("/groups", response_model=ApiResponse[FamilyGroupDetail], status_code=status.HTTP_201_CREATED)
 def create_family_group(
     data: FamilyGroupCreate,
     db: Session = Depends(get_db),
@@ -36,6 +37,9 @@ def create_family_group(
     """
     创建家庭组
     - 自动将创建者添加为管理员
+    
+    Returns:
+        ApiResponse[FamilyGroupDetail]: 统一响应格式，data 为家庭组详情
     """
     group_repo = FamilyGroupRepository(db)
     member_repo = FamilyMemberRepository(db)
@@ -57,7 +61,7 @@ def create_family_group(
     # 获取完整信息
     members = member_repo.get_group_members(group.id)
     
-    return FamilyGroupDetail(
+    group_detail = FamilyGroupDetail(
         id=group.id,
         name=group.name,
         description=group.description,
@@ -80,22 +84,27 @@ def create_family_group(
             ) for m in members
         ]
     )
+    
+    return ApiResponse.success(data=group_detail, message="创建成功")
 
 
-@router.get("/groups", response_model=List[FamilyGroupResponse])
+@router.get("/groups", response_model=ApiResponse[List[FamilyGroupResponse]])
 def list_my_groups(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
     查询我的家庭组列表（包括创建的和加入的）
+    
+    Returns:
+        ApiResponse[List[FamilyGroupResponse]]: 统一响应格式，data 为家庭组列表
     """
     group_repo = FamilyGroupRepository(db)
     member_repo = FamilyMemberRepository(db)
     
     groups = group_repo.get_user_groups(current_user.id)
     
-    return [
+    group_list = [
         FamilyGroupResponse(
             id=g.id,
             name=g.name,
@@ -107,9 +116,11 @@ def list_my_groups(
             updated_at=g.updated_at
         ) for g in groups
     ]
+    
+    return ApiResponse.success(data=group_list)
 
 
-@router.get("/groups/{group_id}", response_model=FamilyGroupDetail)
+@router.get("/groups/{group_id}", response_model=ApiResponse[FamilyGroupDetail])
 def get_group_detail(
     group_id: int,
     db: Session = Depends(get_db),
@@ -117,6 +128,9 @@ def get_group_detail(
 ):
     """
     查询家庭组详情（包含成员列表）
+    
+    Returns:
+        ApiResponse[FamilyGroupDetail]: 统一响应格式，data 为家庭组详情
     """
     group_repo = FamilyGroupRepository(db)
     member_repo = FamilyMemberRepository(db)
@@ -138,7 +152,7 @@ def get_group_detail(
     
     members = member_repo.get_group_members(group_id)
     
-    return FamilyGroupDetail(
+    group_detail = FamilyGroupDetail(
         id=group.id,
         name=group.name,
         description=group.description,
@@ -161,9 +175,11 @@ def get_group_detail(
             ) for m in members
         ]
     )
+    
+    return ApiResponse.success(data=group_detail)
 
 
-@router.put("/groups/{group_id}", response_model=FamilyGroupResponse)
+@router.put("/groups/{group_id}", response_model=ApiResponse[FamilyGroupResponse])
 def update_group(
     group_id: int,
     data: FamilyGroupUpdate,
@@ -172,6 +188,9 @@ def update_group(
 ):
     """
     更新家庭组信息（仅管理员可操作）
+    
+    Returns:
+        ApiResponse[FamilyGroupResponse]: 统一响应格式，data 为更新后的家庭组信息
     """
     group_repo = FamilyGroupRepository(db)
     member_repo = FamilyMemberRepository(db)
@@ -195,7 +214,7 @@ def update_group(
     
     member_count = member_repo.get_group_members(group_id).__len__()
     
-    return FamilyGroupResponse(
+    group_response = FamilyGroupResponse(
         id=group.id,
         name=group.name,
         description=group.description,
@@ -205,9 +224,11 @@ def update_group(
         created_at=group.created_at,
         updated_at=group.updated_at
     )
+    
+    return ApiResponse.success(data=group_response, message="更新成功")
 
 
-@router.delete("/groups/{group_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/groups/{group_id}", response_model=ApiResponse[None])
 def delete_group(
     group_id: int,
     db: Session = Depends(get_db),
@@ -215,6 +236,9 @@ def delete_group(
 ):
     """
     停用家庭组（仅创建者可操作）
+    
+    Returns:
+        ApiResponse[None]: 统一响应格式，data 为空
     """
     group_repo = FamilyGroupRepository(db)
     
@@ -233,12 +257,12 @@ def delete_group(
         )
     
     group_repo.deactivate(group_id)
-    return None
+    return ApiResponse.success(message="停用成功")
 
 
 # ==================== 成员管理 ====================
 
-@router.post("/groups/{group_id}/members", response_model=FamilyMemberResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/groups/{group_id}/members", response_model=ApiResponse[FamilyMemberResponse], status_code=status.HTTP_201_CREATED)
 def add_member(
     group_id: int,
     data: FamilyMemberAdd,
@@ -247,6 +271,9 @@ def add_member(
 ):
     """
     添加成员到家庭组（仅管理员可操作）
+    
+    Returns:
+        ApiResponse[FamilyMemberResponse]: 统一响应格式，data 为添加的成员信息
     """
     group_repo = FamilyGroupRepository(db)
     member_repo = FamilyMemberRepository(db)
@@ -281,7 +308,7 @@ def add_member(
         nickname=data.nickname
     )
     
-    return FamilyMemberResponse(
+    member_response = FamilyMemberResponse(
         id=member.id,
         group_id=member.group_id,
         user_id=member.user_id,
@@ -292,9 +319,11 @@ def add_member(
         user_phone=member.user.phone if member.user else None,
         user_nickname=member.user.nickname if member.user else None
     )
+    
+    return ApiResponse.success(data=member_response, message="添加成功")
 
 
-@router.put("/groups/{group_id}/members/{member_id}", response_model=FamilyMemberResponse)
+@router.put("/groups/{group_id}/members/{member_id}", response_model=ApiResponse[FamilyMemberResponse])
 def update_member(
     group_id: int,
     member_id: int,
@@ -304,6 +333,9 @@ def update_member(
 ):
     """
     更新成员信息（管理员可更新角色，成员可更新自己的昵称）
+    
+    Returns:
+        ApiResponse[FamilyMemberResponse]: 统一响应格式，data 为更新后的成员信息
     """
     member_repo = FamilyMemberRepository(db)
     
@@ -341,7 +373,7 @@ def update_member(
     # 刷新数据
     updated_member = member_repo.get_by_id(member_id)
     
-    return FamilyMemberResponse(
+    member_response = FamilyMemberResponse(
         id=updated_member.id,
         group_id=updated_member.group_id,
         user_id=updated_member.user_id,
@@ -352,9 +384,11 @@ def update_member(
         user_phone=updated_member.user.phone if updated_member.user else None,
         user_nickname=updated_member.user.nickname if updated_member.user else None
     )
+    
+    return ApiResponse.success(data=member_response, message="更新成功")
 
 
-@router.delete("/groups/{group_id}/members/{member_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/groups/{group_id}/members/{member_id}", response_model=ApiResponse[None])
 def remove_member(
     group_id: int,
     member_id: int,
@@ -363,6 +397,9 @@ def remove_member(
 ):
     """
     移除成员（管理员可移除其他成员，成员可退出）
+    
+    Returns:
+        ApiResponse[None]: 统一响应格式，data 为空
     """
     member_repo = FamilyMemberRepository(db)
     
@@ -393,4 +430,4 @@ def remove_member(
         )
     
     member_repo.remove_member(group_id, target_member.user_id)
-    return None
+    return ApiResponse.success(message="移除成功")
