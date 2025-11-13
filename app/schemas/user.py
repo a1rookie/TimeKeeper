@@ -3,7 +3,7 @@ User Schemas
 用户相关的 Pydantic 模型
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from typing import Optional
 from datetime import datetime
 
@@ -17,12 +17,22 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     """User creation schema"""
     password: str = Field(..., min_length=6, description="密码")
+    sms_code: Optional[str] = Field(None, description="短信验证码 - 注册时需要")
 
 
 class UserLogin(BaseModel):
-    """User login schema"""
+    """User login schema - 支持密码登录或验证码登录"""
     phone: str = Field(..., description="手机号")
-    password: str = Field(..., description="密码")
+    password: Optional[str] = Field(None, description="密码 - 密码登录时必填")
+    sms_code: Optional[str] = Field(None, description="短信验证码 - 验证码登录时必填")
+    
+    @validator('sms_code')
+    def validate_login_method(cls, v, values):
+        """验证必须提供密码或验证码之一"""
+        password = values.get('password')
+        if not password and not v:
+            raise ValueError('必须提供密码或短信验证码')
+        return v
 
 
 class UserUpdate(BaseModel):
@@ -54,3 +64,9 @@ class Token(BaseModel):
 class TokenPayload(BaseModel):
     """Token payload schema"""
     user_id: Optional[int] = None
+
+
+class SendSmsRequest(BaseModel):
+    """发送短信验证码请求"""
+    phone: str = Field(..., description="手机号")
+    purpose: Optional[str] = Field("register", description="用途: register(注册) | login(登录) | reset(重置密码)")

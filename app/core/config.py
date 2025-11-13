@@ -20,6 +20,21 @@ class Settings(BaseSettings):
     
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
+
+    # SMS (短信) 配置 - 使用环境变量设置实际密钥
+    SMS_PROVIDER: str = "aliyun"  # aliyun or noop
+    ALIYUN_ACCESS_KEY_ID: Optional[str] = None
+    ALIYUN_ACCESS_KEY_SECRET: Optional[str] = None
+    SMS_SIGN_NAME: Optional[str] = None
+    SMS_TEMPLATE_CODE: Optional[str] = None
+    SMS_REGION: Optional[str] = "cn-hangzhou"
+    SMS_CODE_EXPIRE_SECONDS: int = 300  # 验证码过期时间（秒）
+    SMS_RATE_LIMIT_SECONDS: int = 60  # 相同手机同用途最小发送间隔
+    
+    # SMS 防刷限制
+    MAX_VERIFY_ATTEMPTS: int = 5  # 单个验证码最多尝试次数
+    MAX_SMS_PER_PHONE_PER_DAY: int = 10  # 每个手机号每天最多发送次数
+    MAX_SMS_PER_IP_PER_DAY: int = 50  # 每个IP每天最多发送次数
     
     # JWT
     SECRET_KEY: str = "your-secret-key-change-in-production"
