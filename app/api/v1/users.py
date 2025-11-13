@@ -4,15 +4,20 @@ User API Endpoints
 """
 
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Header
+from fastapi import APIRouter, Depends, HTTPException, status, Header, Request
+from sqlalchemy.orm import Session
 from app.core.security import (
     get_password_hash, 
     verify_password, 
     create_access_token,
     get_current_active_user
 )
+from app.core.database import get_db
 from app.models.user import User
-from app.schemas.user import UserCreate, UserLogin, UserResponse, Token, UserUpdate
+from app.schemas.user import UserCreate, UserLogin, UserResponse, Token, UserUpdate, SendSmsRequest
+from app.services.sms_service import get_sms_service, generate_and_store_code, verify_code, update_sms_log_status
+import json
+from app.core.config import settings
 from app.repositories import get_user_repository
 from app.repositories.user_repository import UserRepository
 
@@ -21,12 +26,13 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register(
-    user_data: UserCreate, 
+    user_data: UserCreate,
+    db: Session = Depends(get_db),
     user_repo: UserRepository = Depends(get_user_repository)
 ):
     """
     User registration
-    用户注册
+    用户注册（需要短信验证码）
     """
     # Check if user exists
     if user_repo.exists_by_phone(user_data.phone):
@@ -35,6 +41,27 @@ async def register(
             detail="手机号已被注册"
         )
     
+    # 验证短信验证码（如果配置了SMS_PROVIDER）
+    if settings.SMS_PROVIDER:
+        if not user_data.sms_code:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="请提供短信验证码"
+            )
+        
+        try:
+            ok = verify_code(user_data.phone, user_data.sms_code, purpose="register", db=db)
+            if not ok:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="短信验证码错误或已过期"
+                )
+        except RuntimeError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e)
+            )
+
     # Create new user
     hashed_password = get_password_hash(user_data.password)
     new_user = user_repo.create(
@@ -77,11 +104,32 @@ async def login(
             detail="手机号或密码错误"
         )
     
-    # Verify password
-    if not verify_password(user_data.password, user.hashed_password):
+    # 验证登录凭证：密码或验证码
+    if user_data.sms_code:
+        # 验证码登录
+        try:
+            ok = verify_code(user_data.phone, user_data.sms_code, purpose="login", db=db)
+            if not ok:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="验证码错误或已过期"
+                )
+        except RuntimeError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e)
+            )
+    elif user_data.password:
+        # 密码登录
+        if not verify_password(user_data.password, user.hashed_password):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="手机号或密码错误"
+            )
+    else:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="手机号或密码错误"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="必须提供密码或短信验证码"
         )
     
     # 验证设备类型
@@ -128,6 +176,82 @@ async def get_current_user_info(
     获取当前用户信息
     """
     return current_user
+
+
+
+@router.post("/send_sms_code")
+async def send_sms_code(
+    payload: SendSmsRequest,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """
+    发送短信验证码（适用于注册/重置密码）
+    
+    限制：
+    - 每个手机号每天最多10次
+    - 每个IP每天最多50次
+    - 同一手机号60秒内只能发送一次
+    
+    Body:
+        {"phone": "187xxx", "purpose": "register"}
+    """
+    phone = payload.phone
+    purpose = payload.purpose or "register"
+    
+    # 获取客户端IP和User-Agent
+    ip_address = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent")
+
+    # 生成并存储验证码（包含防刷检查）
+    try:
+        code, log_id = generate_and_store_code(
+            phone,
+            purpose=purpose,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            db=db
+        )
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=str(e)
+        )
+
+    # 发送短信
+    sms = get_sms_service()
+    sign_name = settings.SMS_SIGN_NAME or settings.APP_NAME
+    template_code = settings.SMS_TEMPLATE_CODE or "100001"
+    template_param = json.dumps({"code": code, "min": "5"})
+    
+    try:
+        ok = sms.send_sms(phone, sign_name, template_code, template_param)
+        
+        # 更新数据库日志状态
+        if log_id:
+            status_str = "sent" if ok else "failed"
+            error_msg = None if ok else "短信发送失败"
+            update_sms_log_status(db, log_id, status_str, error_msg)
+        
+        if not ok:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="短信发送失败"
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        if log_id:
+            update_sms_log_status(db, log_id, "failed", str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"短信发送异常: {str(e)}"
+        )
+
+    return {
+        "message": "短信验证码已发送",
+        "expires_in": settings.SMS_CODE_EXPIRE_SECONDS
+    }
 
 
 @router.put("/me", response_model=UserResponse)
