@@ -54,13 +54,34 @@ class Settings(BaseSettings):
     JPUSH_MASTER_SECRET: Optional[str] = None
     JPUSH_ENABLED: bool = False
     
-    # Voice Recognition (to be configured later)
-    ASR_APP_ID: Optional[str] = None
-    ASR_API_KEY: Optional[str] = None
+    # ===== 语音识别服务配置 (ASR) =====
+    # 科大讯飞（主力）
+    XFYUN_APP_ID: Optional[str] = None
+    XFYUN_API_KEY: Optional[str] = None
+    XFYUN_API_SECRET: Optional[str] = None
+    XFYUN_ENABLED: bool = False
     
-    # LLM API (DeepSeek)
-    LLM_API_KEY: Optional[str] = None
-    LLM_API_URL: str = "https://api.deepseek.com/v1"
+    # 百度语音（备用）
+    BAIDU_APP_ID: Optional[str] = None
+    BAIDU_API_KEY: Optional[str] = None
+    BAIDU_SECRET_KEY: Optional[str] = None
+    BAIDU_ENABLED: bool = False
+    
+    # ASR 通用配置
+    ASR_TIMEOUT: int = 10  # 语音识别超时时间（秒）
+    ASR_MAX_AUDIO_SIZE: int = 5 * 1024 * 1024  # 最大音频文件大小 5MB
+    
+    # ===== 意图理解服务配置 (NLU) =====
+    # DeepSeek-V3 大模型
+    DEEPSEEK_API_KEY: Optional[str] = None
+    DEEPSEEK_API_URL: str = "https://api.deepseek.com/v1/chat/completions"
+    DEEPSEEK_MODEL: str = "deepseek-chat"  # 或 deepseek-coder
+    DEEPSEEK_ENABLED: bool = False
+    DEEPSEEK_TIMEOUT: int = 30  # API 调用超时时间（秒）
+    DEEPSEEK_MAX_TOKENS: int = 500  # 最大生成 token 数
+    
+    # NLU 通用配置
+    NLU_CONFIDENCE_THRESHOLD: float = 0.7  # 意图识别置信度阈值
     
     class Config:
         env_file = ".env"

@@ -3,8 +3,10 @@ Reminder API Endpoints
 提醒相关的 API 端点
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Form
 from typing import List, Optional
+import structlog
+
 from app.core.security import get_current_active_user
 from app.models.user import User
 from app.schemas.response import ApiResponse
@@ -23,9 +25,13 @@ from app.repositories import get_reminder_repository, get_reminder_completion_re
 from app.repositories.reminder_repository import ReminderRepository
 from app.repositories.reminder_completion_repository import ReminderCompletionRepository
 from app.services.push_task_service import create_push_task_for_reminder
+from app.services.asr_service import get_asr_service, ASRError
+from app.services.nlu_service import get_nlu_service, NLUError
 from app.core.database import get_db
 from app.core.recurrence import calculate_next_occurrence
 from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/reminders", tags=["reminders"])
 
@@ -44,6 +50,15 @@ async def create_reminder(
     Returns:
         ApiResponse[ReminderResponse]: 统一响应格式，data 为创建的提醒
     """
+    logger.info(
+        "reminder_create_request",
+        user_id=current_user.id,
+        title=reminder_data.title,
+        category=reminder_data.category,
+        recurrence_type=reminder_data.recurrence_type,
+        event="reminder_create_start"
+    )
+    
     # 使用Repository创建提醒
     new_reminder = await reminder_repo.create(
         user_id=current_user.id,
@@ -63,6 +78,14 @@ async def create_reminder(
     
     # 自动创建推送任务
     await create_push_task_for_reminder(db, new_reminder)
+    
+    logger.info(
+        "reminder_created",
+        reminder_id=new_reminder.id,
+        user_id=current_user.id,
+        title=new_reminder.title,
+        event="reminder_create_success"
+    )
     
     return ApiResponse.success(data=new_reminder, message="创建成功")
 
@@ -132,6 +155,12 @@ async def update_reminder(
     reminder = await reminder_repo.get_by_id(reminder_id, current_user.id)
     
     if not reminder:
+        logger.warning(
+            "reminder_update_not_found",
+            reminder_id=reminder_id,
+            user_id=current_user.id,
+            event="reminder_update_not_found"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="提醒不存在"
@@ -139,7 +168,22 @@ async def update_reminder(
     
     # Update fields
     update_data = reminder_data.model_dump(exclude_unset=True)
+    logger.info(
+        "reminder_update_request",
+        reminder_id=reminder_id,
+        user_id=current_user.id,
+        updated_fields=list(update_data.keys()),
+        event="reminder_update_start"
+    )
+    
     updated_reminder = await reminder_repo.update(reminder, **update_data)
+    
+    logger.info(
+        "reminder_updated",
+        reminder_id=reminder_id,
+        user_id=current_user.id,
+        event="reminder_update_success"
+    )
     
     return ApiResponse.success(data=updated_reminder, message="更新成功")
 
@@ -160,12 +204,33 @@ async def delete_reminder(
     reminder = await reminder_repo.get_by_id(reminder_id, current_user.id)
     
     if not reminder:
+        logger.warning(
+            "reminder_delete_not_found",
+            reminder_id=reminder_id,
+            user_id=current_user.id,
+            event="reminder_delete_not_found"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="提醒不存在"
         )
     
+    logger.info(
+        "reminder_delete_request",
+        reminder_id=reminder_id,
+        user_id=current_user.id,
+        title=reminder.title,
+        event="reminder_delete_start"
+    )
+    
     await reminder_repo.delete(reminder)
+    
+    logger.info(
+        "reminder_deleted",
+        reminder_id=reminder_id,
+        user_id=current_user.id,
+        event="reminder_delete_success"
+    )
     
     return ApiResponse.success(message="删除成功")
 
@@ -296,33 +361,338 @@ async def get_reminder_completions(
 
 
 @router.post("/voice", response_model=ApiResponse[ReminderResponse], status_code=status.HTTP_201_CREATED)
-async def create_reminder_from_voice(voice_data: VoiceReminderCreate, db: AsyncSession = Depends(get_db)):
+async def create_voice_reminder(
+    audio_file: UploadFile = File(..., description="音频文件（支持 PCM/WAV/MP3 等格式）"),
+    user_id: Optional[int] = Form(None, description="用户ID（可选，从token获取）"),
+    family_id: Optional[int] = Form(None, description="家庭ID（可选）"),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
     """
     Create reminder from voice input
-    通过语音创建提醒
+    从语音输入创建提醒
+    
+    工作流程：
+    1. 接收音频文件
+    2. 使用 ASR 服务（科大讯飞/百度）进行语音识别
+    3. 使用 NLU 服务（DeepSeek-V3）进行意图理解
+    4. 创建提醒记录
     
     Returns:
         ApiResponse[ReminderResponse]: 统一响应格式，data 为创建的提醒
-    
-    TODO: Implement voice recognition and NLP parsing
     """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="语音识别功能待实现"
+    # 记录请求
+    logger.info(
+        "voice_reminder_request",
+        user_id=current_user.id,
+        filename=audio_file.filename,
+        content_type=audio_file.content_type,
+        event="voice_reminder_start"
     )
+    
+    try:
+        # 读取音频数据
+        audio_data = await audio_file.read()
+        audio_size = len(audio_data)
+        
+        logger.info(
+            "voice_reminder_audio_received",
+            audio_size=audio_size,
+            event="audio_received"
+        )
+        
+        # 1. 语音识别（ASR）
+        try:
+            asr_service = get_asr_service()
+            text, provider = await asr_service.recognize(audio_data)
+            
+            logger.info(
+                "voice_reminder_asr_complete",
+                text=text[:100],  # 只记录前100字符
+                text_length=len(text),
+                provider=provider,
+                audio_size=audio_size,
+                event="asr_complete"
+            )
+        except ASRError as e:
+            logger.error(
+                "voice_reminder_asr_failed",
+                error=str(e),
+                audio_size=audio_size,
+                event="asr_failed"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"语音识别失败: {str(e)}"
+            )
+        
+        # 2. 意图理解（NLU）
+        try:
+            nlu_service = get_nlu_service()
+            user_context = {
+                "user_timezone": "Asia/Shanghai",  # 可从用户配置读取
+                "user_id": current_user.id
+            }
+            parsed_intent = await nlu_service.parse_reminder(text, user_context)
+            
+            logger.info(
+                "voice_reminder_nlu_complete",
+                confidence=parsed_intent.get("confidence"),
+                category=parsed_intent.get("category"),
+                recurrence_type=parsed_intent.get("recurrence_type"),
+                event="nlu_complete"
+            )
+        except NLUError as e:
+            logger.error(
+                "voice_reminder_nlu_failed",
+                error=str(e),
+                text=text[:100],
+                event="nlu_failed"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"意图理解失败: {str(e)}"
+            )
+        
+        # 3. 构建 ReminderCreate 对象
+        reminder_data = ReminderCreate(
+            user_id=user_id or current_user.id,
+            family_id=family_id,
+            title=parsed_intent["title"],
+            description=parsed_intent.get("description"),
+            category=parsed_intent.get("category", "other"),
+            recurrence_type=parsed_intent.get("recurrence_type", "once"),
+            recurrence_config=parsed_intent.get("recurrence_config", {}),
+            first_remind_time=parsed_intent["first_remind_time"],
+            advance_minutes=parsed_intent.get("advance_minutes", 0),
+            priority=parsed_intent.get("priority", "normal")
+        )
+        
+        # 4. 创建提醒（复用现有逻辑）
+        reminder_repo = get_reminder_repository(db)
+        new_reminder = await reminder_repo.create(reminder_data)
+        
+        # 5. 创建推送任务
+        await create_push_task_for_reminder(db, new_reminder)
+        
+        logger.info(
+            "voice_reminder_created",
+            reminder_id=new_reminder.id,
+            user_id=new_reminder.user_id,
+            title=new_reminder.title,
+            confidence=parsed_intent.get("confidence"),
+            provider=provider,
+            event="voice_reminder_success"
+        )
+        
+        return ApiResponse.success(
+            data=ReminderResponse.model_validate(new_reminder),
+            message=f"语音提醒创建成功（识别置信度: {parsed_intent.get('confidence', 'N/A')}）"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "voice_reminder_error",
+            error=str(e),
+            user_id=current_user.id,
+            event="voice_reminder_error"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"创建语音提醒失败: {str(e)}"
+        )
 
 
 @router.post("/quick", response_model=ApiResponse[ReminderResponse], status_code=status.HTTP_201_CREATED)
-async def create_quick_reminder(quick_data: QuickReminderCreate, db: AsyncSession = Depends(get_db)):
+async def create_quick_reminder(
+    quick_data: QuickReminderCreate,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
     """
     Create reminder from template
     从模板快速创建提醒
     
+    支持两种模板类型：
+    1. 系统模板（template_id 格式: "system_<id>"）
+    2. 用户自定义模板（template_id 格式: "custom_<id>"）
+    
+    自定义数据可覆盖模板默认值：
+    - title: 提醒标题
+    - description: 提醒描述
+    - first_remind_time: 首次提醒时间（必填）
+    - advance_minutes: 提前提醒分钟数
+    - priority: 优先级
+    
     Returns:
         ApiResponse[ReminderResponse]: 统一响应格式，data 为创建的提醒
-    
-    TODO: Implement template system
     """
+    logger.info(
+        "quick_reminder_request",
+        template_id=quick_data.template_id,
+        user_id=current_user.id,
+        has_custom_data=bool(quick_data.custom_data),
+        event="quick_reminder_start"
+    )
+    
+    try:
+        # 解析模板类型和ID
+        template_parts = quick_data.template_id.split("_", 1)
+        if len(template_parts) != 2:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="模板ID格式错误，应为 system_<id> 或 custom_<id>"
+            )
+        
+        template_type, template_id_str = template_parts
+        
+        try:
+            template_id = int(template_id_str)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="模板ID必须为数字"
+            )
+        
+        # 获取模板
+        template = None
+        if template_type == "system":
+            from app.repositories.reminder_template_repository import ReminderTemplateRepository
+            template_repo = ReminderTemplateRepository(db)
+            template = await template_repo.get_by_id(template_id)
+            
+            if not template or not template.is_active:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="系统模板不存在或已禁用"
+                )
+            
+            # 增加使用次数
+            await template_repo.increment_usage(template_id)
+            
+        elif template_type == "custom":
+            from app.repositories.user_custom_template_repository import UserCustomTemplateRepository
+            custom_template_repo = UserCustomTemplateRepository(db)
+            template = await custom_template_repo.get_by_id(template_id)
+            
+            if not template or not template.is_active:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="自定义模板不存在或已禁用"
+                )
+            
+            # 验证权限（仅创建者或家庭成员可使用）
+            if template.user_id != current_user.id:
+                # 检查是否为共享模板
+                from app.repositories.template_share_repository import TemplateShareRepository
+                share_repo = TemplateShareRepository(db)
+                can_use = await share_repo.can_user_access_template(template_id, current_user.id)
+                
+                if not can_use:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="无权使用此模板"
+                    )
+            
+            # 增加使用次数
+            await custom_template_repo.increment_usage(template_id)
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="模板类型错误，必须为 system 或 custom"
+            )
+        
+        logger.info(
+            "quick_reminder_template_loaded",
+            template_id=quick_data.template_id,
+            template_name=template.name,
+            template_type=template_type,
+            event="template_loaded"
+        )
+        
+        # 构建提醒数据（优先使用自定义数据）
+        custom_data = quick_data.custom_data or {}
+        
+        # 首次提醒时间必须提供
+        if "first_remind_time" not in custom_data:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="必须提供 first_remind_time（首次提醒时间）"
+            )
+        
+        reminder_data = ReminderCreate(
+            user_id=current_user.id,
+            family_id=custom_data.get("family_id"),
+            title=custom_data.get("title", template.name),
+            description=custom_data.get("description", template.description),
+            category=template.category if template_type == "system" else template.category,
+            recurrence_type=custom_data.get(
+                "recurrence_type",
+                template.default_recurrence_type if hasattr(template, "default_recurrence_type") else "once"
+            ),
+            recurrence_config=custom_data.get(
+                "recurrence_config",
+                template.default_recurrence_config if hasattr(template, "default_recurrence_config") else {}
+            ),
+            first_remind_time=custom_data["first_remind_time"],
+            advance_minutes=custom_data.get(
+                "advance_minutes",
+                template.default_remind_advance_days * 24 * 60 if hasattr(template, "default_remind_advance_days") else 0
+            ),
+            priority=custom_data.get("priority", "normal"),
+            remind_channels=custom_data.get("remind_channels", ["app"])
+        )
+        
+        # 创建提醒
+        reminder_repo = get_reminder_repository(db)
+        new_reminder = await reminder_repo.create(reminder_data)
+        
+        # 创建推送任务
+        await create_push_task_for_reminder(db, new_reminder)
+        
+        # 记录模板使用
+        from app.repositories.template_usage_record_repository import TemplateUsageRecordRepository
+        from app.schemas.template import TemplateUsageCreate
+        
+        usage_repo = TemplateUsageRecordRepository(db)
+        usage_data = TemplateUsageCreate(
+            user_id=current_user.id,
+            template_id=template_id if template_type == "system" else None,
+            custom_template_id=template_id if template_type == "custom" else None,
+            reminder_id=new_reminder.id
+        )
+        await usage_repo.create(usage_data)
+        
+        logger.info(
+            "quick_reminder_created",
+            reminder_id=new_reminder.id,
+            template_id=quick_data.template_id,
+            template_name=template.name,
+            user_id=current_user.id,
+            event="quick_reminder_success"
+        )
+        
+        return ApiResponse.success(
+            data=ReminderResponse.model_validate(new_reminder),
+            message=f"从模板「{template.name}」创建提醒成功"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "quick_reminder_error",
+            error=str(e),
+            template_id=quick_data.template_id,
+            user_id=current_user.id,
+            event="quick_reminder_error"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"从模板创建提醒失败: {str(e)}"
+        )
     raise HTTPException(
         status_code=status.HTTP_501_NOT_IMPLEMENTED,
         detail="模板功能待实现"
