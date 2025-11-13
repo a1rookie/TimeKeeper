@@ -3,7 +3,8 @@ Template Usage Record Repository
 模板使用记录数据访问层
 """
 from typing import List, Optional
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from sqlalchemy import and_, desc
 from app.models.template_usage_record import TemplateUsageRecord
 
@@ -11,10 +12,10 @@ from app.models.template_usage_record import TemplateUsageRecord
 class TemplateUsageRecordRepository:
     """模板使用记录数据访问"""
     
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         self.db = db
     
-    def create(
+    async def create(
         self,
         template_share_id: int,
         user_id: int,
@@ -29,29 +30,30 @@ class TemplateUsageRecordRepository:
             feedback_comment=feedback_comment
         )
         self.db.add(record)
-        self.db.commit()
-        self.db.refresh(record)
+        await self.db.commit()
+        await self.db.refresh(record)
         return record
     
-    def get_by_id(self, record_id: int) -> Optional[TemplateUsageRecord]:
+    async def get_by_id(self, record_id: int) -> Optional[TemplateUsageRecord]:
         """根据ID查询记录"""
-        return self.db.query(TemplateUsageRecord).filter(
+        result = await self.db.execute(select(TemplateUsageRecord).filter(
             TemplateUsageRecord.id == record_id
-        ).first()
+        ))
+        return result.scalar_one_or_none()
     
-    def get_by_share(self, template_share_id: int) -> List[TemplateUsageRecord]:
+    async def get_by_share(self, template_share_id: int) -> List[TemplateUsageRecord]:
         """查询模板分享的所有使用记录"""
         return self.db.query(TemplateUsageRecord).filter(
             TemplateUsageRecord.template_share_id == template_share_id
         ).order_by(desc(TemplateUsageRecord.used_at)).all()
     
-    def get_by_user(self, user_id: int) -> List[TemplateUsageRecord]:
+    async def get_by_user(self, user_id: int) -> List[TemplateUsageRecord]:
         """查询用户的使用记录"""
         return self.db.query(TemplateUsageRecord).filter(
             TemplateUsageRecord.user_id == user_id
         ).order_by(desc(TemplateUsageRecord.used_at)).all()
     
-    def check_existing(self, template_share_id: int, user_id: int) -> Optional[TemplateUsageRecord]:
+    async def check_existing(self, template_share_id: int, user_id: int) -> Optional[TemplateUsageRecord]:
         """检查用户是否已使用过该模板"""
         return self.db.query(TemplateUsageRecord).filter(
             and_(
@@ -60,7 +62,7 @@ class TemplateUsageRecordRepository:
             )
         ).first()
     
-    def update_feedback(
+    async def update_feedback(
         self,
         record_id: int,
         feedback_rating: Optional[int] = None,
@@ -76,11 +78,11 @@ class TemplateUsageRecordRepository:
         if feedback_comment is not None:
             record.feedback_comment = feedback_comment
         
-        self.db.commit()
-        self.db.refresh(record)
+        await self.db.commit()
+        await self.db.refresh(record)
         return record
     
-    def get_avg_rating(self, template_share_id: int) -> float:
+    async def get_avg_rating(self, template_share_id: int) -> float:
         """计算模板的平均评分"""
         from sqlalchemy import func
         

@@ -5,7 +5,7 @@ User API Endpoints
 
 from typing import Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status, Header, Request
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import (
     get_password_hash, 
     verify_password, 
@@ -28,7 +28,7 @@ router = APIRouter(prefix="/users", tags=["users"])
 @router.post("/register", response_model=ApiResponse[UserResponse], status_code=status.HTTP_201_CREATED)
 async def register(
     user_data: UserCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     user_repo: UserRepository = Depends(get_user_repository)
 ):
     """
@@ -39,7 +39,7 @@ async def register(
         ApiResponse[UserResponse]: 统一响应格式，data 为用户信息
     """
     # Check if user exists
-    if user_repo.exists_by_phone(user_data.phone):
+    if await user_repo.exists_by_phone(user_data.phone):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="手机号已被注册"
@@ -68,7 +68,7 @@ async def register(
 
     # Create new user
     hashed_password = get_password_hash(user_data.password)
-    new_user = user_repo.create(
+    new_user = await user_repo.create(
         phone=user_data.phone,
         nickname=user_data.nickname,
         hashed_password=hashed_password
@@ -81,7 +81,7 @@ async def register(
 async def login(
     user_data: UserLogin,
     x_device_type: Optional[str] = Header("web", alias="X-Device-Type"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     user_repo: UserRepository = Depends(get_user_repository)
 ):
     """
@@ -102,7 +102,7 @@ async def login(
         - 被踢掉的设备会在下次请求时收到401错误
     """
     # Find user
-    user = user_repo.get_by_phone(user_data.phone)
+    user = await user_repo.get_by_phone(user_data.phone)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -192,7 +192,7 @@ async def get_current_user_info(
 async def send_sms_code(
     payload: SendSmsRequest,
     request: Request,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     发送短信验证码（适用于注册/重置密码）
@@ -284,7 +284,7 @@ async def update_current_user(
     """
     # Update user fields
     update_fields = user_data.model_dump(exclude_unset=True)
-    updated_user = user_repo.update(current_user, **update_fields)
+    updated_user = await user_repo.update(current_user, **update_fields)
     
     return ApiResponse.success(data=updated_user, message="更新成功")
 

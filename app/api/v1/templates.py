@@ -4,12 +4,13 @@ Template API
 """
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.user import User
 from app.models.template_share import ShareType
+from app.schemas.response import ApiResponse
 from app.schemas.template import (
     ReminderTemplateResponse,
     UserCustomTemplateCreate,
@@ -34,10 +35,10 @@ router = APIRouter()
 
 # ==================== 系统模板 ====================
 
-@router.get("/templates/system", response_model=List[ReminderTemplateResponse])
-def list_system_templates(
+@router.get("/templates/system", response_model=ApiResponse[List[ReminderTemplateResponse]])
+async def list_system_templates(
     category: Optional[str] = Query(None, description="按分类筛选"),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     获取系统模板列表
@@ -47,11 +48,11 @@ def list_system_templates(
     template_repo = ReminderTemplateRepository(db)
     
     if category:
-        templates = template_repo.get_by_category(category)
+        templates = await template_repo.get_by_category(category)
     else:
-        templates = template_repo.get_all_active()
+        templates = await template_repo.get_all_active()
     
-    return [
+    return ApiResponse.success(data=[
         ReminderTemplateResponse(
             id=t.id,
             name=t.name,
@@ -64,17 +65,17 @@ def list_system_templates(
             is_active=t.is_active,
             created_at=t.created_at
         ) for t in templates
-    ]
+    ])
 
 
-@router.get("/templates/system/{template_id}", response_model=ReminderTemplateResponse)
-def get_system_template(
+@router.get("/templates/system/{template_id}", response_model=ApiResponse[ReminderTemplateResponse])
+async def get_system_template(
     template_id: int,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """获取系统模板详情"""
     template_repo = ReminderTemplateRepository(db)
-    template = template_repo.get_by_id(template_id)
+    template = await template_repo.get_by_id(template_id)
     
     if not template:
         raise HTTPException(
@@ -82,7 +83,7 @@ def get_system_template(
             detail="系统模板不存在"
         )
     
-    return ReminderTemplateResponse(
+    return ApiResponse.success(data=ReminderTemplateResponse(
         id=template.id,
         name=template.name,
         category=template.category,
@@ -93,19 +94,19 @@ def get_system_template(
         usage_count=template.usage_count,
         is_active=template.is_active,
         created_at=template.created_at
-    )
+    ))
 
 
-@router.get("/templates/system/popular", response_model=List[ReminderTemplateResponse])
-def get_popular_templates(
+@router.get("/templates/system/popular", response_model=ApiResponse[List[ReminderTemplateResponse]])
+async def get_popular_templates(
     limit: int = Query(10, ge=1, le=50, description="返回数量"),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """获取热门系统模板"""
     template_repo = ReminderTemplateRepository(db)
-    templates = template_repo.get_popular(limit=limit)
+    templates = await template_repo.get_popular(limit=limit)
     
-    return [
+    return ApiResponse.success(data=[
         ReminderTemplateResponse(
             id=t.id,
             name=t.name,
@@ -118,15 +119,15 @@ def get_popular_templates(
             is_active=t.is_active,
             created_at=t.created_at
         ) for t in templates
-    ]
+    ])
 
 
 # ==================== 用户自定义模板 ====================
 
-@router.post("/templates/custom", response_model=UserCustomTemplateResponse, status_code=status.HTTP_201_CREATED)
-def create_custom_template(
+@router.post("/templates/custom", response_model=ApiResponse[UserCustomTemplateResponse], status_code=status.HTTP_201_CREATED)
+async def create_custom_template(
     data: UserCustomTemplateCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -136,7 +137,7 @@ def create_custom_template(
     template_repo = UserCustomTemplateRepository(db)
     
     # 检查名称是否重复
-    existing = template_repo.get_by_user_and_name(current_user.id, data.name)
+    existing = await template_repo.get_by_user_and_name(current_user.id, data.name)
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -148,7 +149,7 @@ def create_custom_template(
         system_template_repo = ReminderTemplateRepository(db)
         system_template_repo.increment_usage(data.created_from_template_id)
     
-    template = template_repo.create(
+    template = await template_repo.create(
         user_id=current_user.id,
         name=data.name,
         description=data.description,
@@ -158,7 +159,7 @@ def create_custom_template(
         created_from_template_id=data.created_from_template_id
     )
     
-    return UserCustomTemplateResponse(
+    return ApiResponse.success(data=UserCustomTemplateResponse(
         id=template.id,
         user_id=template.user_id,
         name=template.name,
@@ -169,19 +170,19 @@ def create_custom_template(
         created_from_template_id=template.created_from_template_id,
         created_at=template.created_at,
         updated_at=template.updated_at
-    )
+    ))
 
 
-@router.get("/templates/custom", response_model=List[UserCustomTemplateResponse])
-def list_my_templates(
-    db: Session = Depends(get_db),
+@router.get("/templates/custom", response_model=ApiResponse[List[UserCustomTemplateResponse]])
+async def list_my_templates(
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """获取我的自定义模板列表"""
     template_repo = UserCustomTemplateRepository(db)
-    templates = template_repo.get_user_templates(current_user.id)
+    templates = await template_repo.get_user_templates(current_user.id)
     
-    return [
+    return ApiResponse.success(data=[
         UserCustomTemplateResponse(
             id=t.id,
             user_id=t.user_id,
@@ -194,20 +195,20 @@ def list_my_templates(
             created_at=t.created_at,
             updated_at=t.updated_at
         ) for t in templates
-    ]
+    ])
 
 
-@router.put("/templates/custom/{template_id}", response_model=UserCustomTemplateResponse)
-def update_custom_template(
+@router.put("/templates/custom/{template_id}", response_model=ApiResponse[UserCustomTemplateResponse])
+async def update_custom_template(
     template_id: int,
     data: UserCustomTemplateUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """更新用户自定义模板"""
     template_repo = UserCustomTemplateRepository(db)
     
-    template = template_repo.get_by_id(template_id)
+    template = await template_repo.get_by_id(template_id)
     if not template:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -221,9 +222,9 @@ def update_custom_template(
         )
     
     update_data = data.model_dump(exclude_unset=True)
-    updated_template = template_repo.update(template_id, **update_data)
+    updated_template = await template_repo.update(template_id, **update_data)
     
-    return UserCustomTemplateResponse(
+    return ApiResponse.success(data=UserCustomTemplateResponse(
         id=updated_template.id,
         user_id=updated_template.user_id,
         name=updated_template.name,
@@ -234,19 +235,19 @@ def update_custom_template(
         created_from_template_id=updated_template.created_from_template_id,
         created_at=updated_template.created_at,
         updated_at=updated_template.updated_at
-    )
+    ))
 
 
 @router.delete("/templates/custom/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_custom_template(
+async def delete_custom_template(
     template_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """删除用户自定义模板"""
     template_repo = UserCustomTemplateRepository(db)
     
-    template = template_repo.get_by_id(template_id)
+    template = await template_repo.get_by_id(template_id)
     if not template:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -265,10 +266,10 @@ def delete_custom_template(
 
 # ==================== 模板分享 ====================
 
-@router.post("/templates/share", response_model=TemplateShareResponse, status_code=status.HTTP_201_CREATED)
-def share_template(
+@router.post("/templates/share", response_model=ApiResponse[TemplateShareResponse], status_code=status.HTTP_201_CREATED)
+async def share_template(
     data: TemplateShareCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -279,7 +280,7 @@ def share_template(
     share_repo = TemplateShareRepository(db)
     
     # 检查模板是否存在且属于当前用户
-    template = custom_template_repo.get_by_id(data.template_id)
+    template = await custom_template_repo.get_by_id(data.template_id)
     if not template:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -301,14 +302,14 @@ def share_template(
             )
         
         member_repo = FamilyMemberRepository(db)
-        if not member_repo.is_member(data.family_group_id, current_user.id):
+        if not await member_repo.is_member(data.family_group_id, current_user.id):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="不是该家庭组成员"
             )
     
     # 创建分享
-    share = share_repo.create(
+    share = await share_repo.create(
         template_id=data.template_id,
         user_id=current_user.id,
         share_type=data.share_type,
@@ -317,7 +318,7 @@ def share_template(
         family_group_id=data.family_group_id
     )
     
-    return TemplateShareResponse(
+    return ApiResponse.success(data=TemplateShareResponse(
         id=share.id,
         template_id=share.template_id,
         user_id=share.user_id,
@@ -332,20 +333,20 @@ def share_template(
         created_at=share.created_at,
         owner_nickname=current_user.nickname,
         template_name=template.name
-    )
+    ))
 
 
-@router.get("/templates/share/public", response_model=List[TemplateShareResponse])
-def list_public_shares(
+@router.get("/templates/share/public", response_model=ApiResponse[List[TemplateShareResponse]])
+async def list_public_shares(
     limit: int = Query(50, ge=1, le=100, description="返回数量"),
     offset: int = Query(0, ge=0, description="偏移量"),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """获取公开分享的模板广场"""
     share_repo = TemplateShareRepository(db)
-    shares = share_repo.get_public_shares(limit=limit, offset=offset)
+    shares = await share_repo.get_public_shares(limit=limit, offset=offset)
     
-    return [
+    return ApiResponse.success(data=[
         TemplateShareResponse(
             id=s.id,
             template_id=s.template_id,
@@ -362,13 +363,13 @@ def list_public_shares(
             owner_nickname=s.user.nickname if s.user else None,
             template_name=s.template.name if s.template else None
         ) for s in shares
-    ]
+    ])
 
 
-@router.get("/templates/share/{share_code}", response_model=TemplateShareDetail)
-def get_share_detail(
+@router.get("/templates/share/{share_code}", response_model=ApiResponse[TemplateShareDetail])
+async def get_share_detail(
     share_code: str,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -378,7 +379,7 @@ def get_share_detail(
     share_repo = TemplateShareRepository(db)
     like_repo = TemplateLikeRepository(db)
     
-    share = share_repo.get_by_share_code(share_code)
+    share = await share_repo.get_by_share_code(share_code)
     if not share:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -388,16 +389,16 @@ def get_share_detail(
     # 检查家庭分享的权限
     if share.share_type == ShareType.FAMILY:
         member_repo = FamilyMemberRepository(db)
-        if not member_repo.is_member(share.family_group_id, current_user.id):
+        if not await member_repo.is_member(share.family_group_id, current_user.id):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="无权访问该家庭分享"
             )
     
     # 检查当前用户是否点赞
-    is_liked = like_repo.is_liked(share.id, current_user.id)
+    is_liked = await like_repo.is_liked(share.id, current_user.id)
     
-    return TemplateShareDetail(
+    return ApiResponse.success(data=TemplateShareDetail(
         id=share.id,
         template_id=share.template_id,
         user_id=share.user_id,
@@ -425,14 +426,14 @@ def get_share_detail(
             updated_at=share.template.updated_at
         ) if share.template else None,
         is_liked=is_liked
-    )
+    ))
 
 
-@router.post("/templates/share/{share_code}/use", response_model=TemplateUsageResponse)
-def use_shared_template(
+@router.post("/templates/share/{share_code}/use", response_model=ApiResponse[TemplateUsageResponse])
+async def use_shared_template(
     share_code: str,
     data: TemplateUsageCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -442,7 +443,7 @@ def use_shared_template(
     share_repo = TemplateShareRepository(db)
     usage_repo = TemplateUsageRecordRepository(db)
     
-    share = share_repo.get_by_share_code(share_code)
+    share = await share_repo.get_by_share_code(share_code)
     if not share:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -453,34 +454,34 @@ def use_shared_template(
     share_repo.increment_usage(share.id)
     
     # 创建使用记录
-    usage = usage_repo.create(
+    usage = await usage_repo.create(
         template_share_id=share.id,
         user_id=current_user.id,
         feedback_rating=data.feedback_rating,
         feedback_comment=data.feedback_comment
     )
     
-    return TemplateUsageResponse(
+    return ApiResponse.success(data=TemplateUsageResponse(
         id=usage.id,
         template_share_id=usage.template_share_id,
         user_id=usage.user_id,
         feedback_rating=usage.feedback_rating,
         feedback_comment=usage.feedback_comment,
         used_at=usage.used_at
-    )
+    ))
 
 
 @router.post("/templates/share/{share_id}/like", status_code=status.HTTP_201_CREATED)
-def like_template(
+async def like_template(
     share_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """点赞模板"""
     share_repo = TemplateShareRepository(db)
     like_repo = TemplateLikeRepository(db)
     
-    share = share_repo.get_by_id(share_id)
+    share = await share_repo.get_by_id(share_id)
     if not share:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -488,7 +489,7 @@ def like_template(
         )
     
     # 添加点赞
-    like = like_repo.add_like(share_id, current_user.id)
+    like = await like_repo.add_like(share_id, current_user.id)
     if not like:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -498,20 +499,20 @@ def like_template(
     # 增加点赞数
     share_repo.increment_like(share_id)
     
-    return {"message": "点赞成功"}
+    return ApiResponse.success(data={"message": "点赞成功"})
 
 
 @router.delete("/templates/share/{share_id}/like", status_code=status.HTTP_204_NO_CONTENT)
-def unlike_template(
+async def unlike_template(
     share_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """取消点赞"""
     share_repo = TemplateShareRepository(db)
     like_repo = TemplateLikeRepository(db)
     
-    success = like_repo.remove_like(share_id, current_user.id)
+    success = await like_repo.remove_like(share_id, current_user.id)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

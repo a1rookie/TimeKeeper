@@ -1,11 +1,11 @@
 """
 Reminder Repository
-提醒数据访问层
+提醒数据访问层 - 异步版本
 """
 
 from typing import List, Optional
-from sqlalchemy.orm import Session
-from sqlalchemy import and_
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import and_, select
 from datetime import datetime
 from app.models.reminder import Reminder, ReminderCategory, RecurrenceType
 
@@ -13,19 +13,22 @@ from app.models.reminder import Reminder, ReminderCategory, RecurrenceType
 class ReminderRepository:
     """提醒数据仓库"""
     
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         self.db = db
     
-    def get_by_id(self, reminder_id: int, user_id: int) -> Optional[Reminder]:
+    async def get_by_id(self, reminder_id: int, user_id: int) -> Optional[Reminder]:
         """根据ID获取提醒（验证所有权）"""
-        return self.db.query(Reminder).filter(
-            and_(
-                Reminder.id == reminder_id,
-                Reminder.user_id == user_id
+        result = await self.db.execute(
+            select(Reminder).filter(
+                and_(
+                    Reminder.id == reminder_id,
+                    Reminder.user_id == user_id
+                )
             )
-        ).first()
+        )
+        return result.scalar_one_or_none()
     
-    def get_user_reminders(
+    async def get_user_reminders(
         self, 
         user_id: int, 
         skip: int = 0, 
@@ -34,7 +37,7 @@ class ReminderRepository:
         category: Optional[ReminderCategory] = None
     ) -> List[Reminder]:
         """获取用户的提醒列表"""
-        query = self.db.query(Reminder).filter(Reminder.user_id == user_id)
+        query = select(Reminder).filter(Reminder.user_id == user_id)
         
         if is_active is not None:
             query = query.filter(Reminder.is_active == is_active)
@@ -42,9 +45,11 @@ class ReminderRepository:
         if category is not None:
             query = query.filter(Reminder.category == category)
         
-        return query.order_by(Reminder.next_remind_time).offset(skip).limit(limit).all()
+        query = query.order_by(Reminder.next_remind_time).offset(skip).limit(limit)
+        result = await self.db.execute(query)
+        return list(result.scalars().all())
     
-    def create(
+    async def create(
         self,
         user_id: int,
         title: str,
@@ -79,64 +84,70 @@ class ReminderRepository:
         )
         
         self.db.add(new_reminder)
-        self.db.commit()
-        self.db.refresh(new_reminder)
+        await self.db.commit()
+        await self.db.refresh(new_reminder)
         return new_reminder
     
-    def update(self, reminder: Reminder, **kwargs) -> Reminder:
+    async def update(self, reminder: Reminder, **kwargs) -> Reminder:
         """更新提醒"""
         for field, value in kwargs.items():
             if hasattr(reminder, field) and value is not None:
                 setattr(reminder, field, value)
         
-        self.db.commit()
-        self.db.refresh(reminder)
+        await self.db.commit()
+        await self.db.refresh(reminder)
         return reminder
     
-    def delete(self, reminder: Reminder) -> None:
+    async def delete(self, reminder: Reminder) -> None:
         """删除提醒"""
-        self.db.delete(reminder)
-        self.db.commit()
+        await self.db.delete(reminder)
+        await self.db.commit()
     
-    def mark_completed(self, reminder: Reminder, user_id: int) -> Reminder:
+    async def mark_completed(self, reminder: Reminder, user_id: int) -> Reminder:
         """标记提醒为已完成，并返回更新后的提醒"""
         reminder.is_completed = True
         reminder.completed_at = datetime.now()
-        self.db.commit()
-        self.db.refresh(reminder)
+        await self.db.commit()
+        await self.db.refresh(reminder)
         return reminder
     
-    def mark_uncompleted(self, reminder: Reminder) -> Reminder:
+    async def mark_uncompleted(self, reminder: Reminder) -> Reminder:
         """取消完成状态"""
         reminder.is_completed = False
         reminder.completed_at = None
-        self.db.commit()
-        self.db.refresh(reminder)
+        await self.db.commit()
+        await self.db.refresh(reminder)
         return reminder
     
-    def update_next_remind_time(self, reminder: Reminder, next_time: datetime) -> Reminder:
+    async def update_next_remind_time(self, reminder: Reminder, next_time: datetime) -> Reminder:
         """更新下次提醒时间"""
         reminder.next_remind_time = next_time
         reminder.last_remind_time = reminder.completed_at or datetime.now()
-        self.db.commit()
-        self.db.refresh(reminder)
+        await self.db.commit()
+        await self.db.refresh(reminder)
         return reminder
     
-    def get_pending_reminders(self, before_time: datetime) -> List[Reminder]:
+    async def get_pending_reminders(self, before_time: datetime) -> List[Reminder]:
         """获取待推送的提醒（下次提醒时间在指定时间之前且未完成）"""
-        return self.db.query(Reminder).filter(
-            and_(
-                Reminder.is_active == True,
-                Reminder.is_completed == False,
-                Reminder.next_remind_time <= before_time
+        result = await self.db.execute(
+            select(Reminder).filter(
+                and_(
+                    Reminder.is_active == True,
+                    Reminder.is_completed == False,
+                    Reminder.next_remind_time <= before_time
+                )
             )
-        ).all()
+        )
+        return list(result.scalars().all())
     
-    def count_user_reminders(self, user_id: int, is_active: Optional[bool] = None) -> int:
+    async def count_user_reminders(self, user_id: int, is_active: Optional[bool] = None) -> int:
         """统计用户提醒数量"""
-        query = self.db.query(Reminder).filter(Reminder.user_id == user_id)
+        from sqlalchemy import func, select as sql_select
+        
+        query = sql_select(func.count()).select_from(Reminder).filter(Reminder.user_id == user_id)
         
         if is_active is not None:
             query = query.filter(Reminder.is_active == is_active)
         
-        return query.count()
+        result = await self.db.execute(query)
+        return result.scalar()

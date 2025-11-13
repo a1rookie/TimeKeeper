@@ -4,7 +4,8 @@ User Behavior Repository
 """
 from typing import List, Optional
 from datetime import date, datetime, timedelta
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from sqlalchemy import and_, desc
 from app.models.user_behavior import UserBehavior
 
@@ -12,10 +13,10 @@ from app.models.user_behavior import UserBehavior
 class UserBehaviorRepository:
     """用户行为数据访问"""
     
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         self.db = db
     
-    def create_or_update(
+    async def create_or_update(
         self,
         user_id: int,
         behavior_date: date,
@@ -59,11 +60,11 @@ class UserBehaviorRepository:
             )
             self.db.add(behavior)
         
-        self.db.commit()
-        self.db.refresh(behavior)
+        await self.db.commit()
+        await self.db.refresh(behavior)
         return behavior
     
-    def get_by_date(self, user_id: int, behavior_date: date) -> Optional[UserBehavior]:
+    async def get_by_date(self, user_id: int, behavior_date: date) -> Optional[UserBehavior]:
         """查询指定日期的行为数据"""
         return self.db.query(UserBehavior).filter(
             and_(
@@ -72,7 +73,7 @@ class UserBehaviorRepository:
             )
         ).first()
     
-    def get_date_range(
+    async def get_date_range(
         self,
         user_id: int,
         start_date: date,
@@ -87,13 +88,13 @@ class UserBehaviorRepository:
             )
         ).order_by(UserBehavior.behavior_date).all()
     
-    def get_recent(self, user_id: int, days: int = 30) -> List[UserBehavior]:
+    async def get_recent(self, user_id: int, days: int = 30) -> List[UserBehavior]:
         """查询最近N天的行为数据"""
         end_date = date.today()
         start_date = end_date - timedelta(days=days)
         return self.get_date_range(user_id, start_date, end_date)
     
-    def calculate_avg_completion_rate(self, user_id: int, days: int = 30) -> float:
+    async def calculate_avg_completion_rate(self, user_id: int, days: int = 30) -> float:
         """计算平均完成率"""
         behaviors = self.get_recent(user_id, days)
         if not behaviors:
@@ -102,7 +103,7 @@ class UserBehaviorRepository:
         total_rate = sum(b.completion_rate for b in behaviors)
         return round(total_rate / len(behaviors), 2)
     
-    def get_most_active_hours(self, user_id: int, days: int = 30) -> List[int]:
+    async def get_most_active_hours(self, user_id: int, days: int = 30) -> List[int]:
         """获取最活跃的时间段"""
         behaviors = self.get_recent(user_id, days)
         if not behaviors:

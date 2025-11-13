@@ -28,10 +28,10 @@ def get_redis() -> Optional[Redis]:
             )
             # 测试连接
             _redis_client.ping()
-            print(f"✅ Redis connected: {settings.REDIS_URL.split('@')[-1]}")
+            print(f"[OK] Redis connected: {settings.REDIS_URL.split('@')[-1]}")
         except Exception as e:
-            print(f"⚠️  Redis连接失败: {e}")
-            print("   会话管理功能将降级为仅JWT验证")
+            print(f"[WARN] Redis connection failed: {e}")
+            print("   Session management will fallback to JWT only")
             _redis_client = None
     
     return _redis_client

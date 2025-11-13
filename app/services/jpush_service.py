@@ -8,9 +8,9 @@ import json
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from app.core.config import settings
-import logging
+import structlog
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class JPushClient:
