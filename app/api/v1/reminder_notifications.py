@@ -23,7 +23,7 @@ from app.services.advanced_notification_service import get_advanced_notification
 
 logger = structlog.get_logger(__name__)
 
-router = APIRouter(prefix="/reminders", tags=["reminder-notifications"])
+router = APIRouter(prefix="/reminders", tags=["Reminder Notifications"])
 
 
 @router.post("/{reminder_id}/notification-config", response_model=ApiResponse[ReminderNotificationResponse], status_code=status.HTTP_201_CREATED)

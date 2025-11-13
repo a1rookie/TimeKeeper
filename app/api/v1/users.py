@@ -24,7 +24,7 @@ from app.repositories.user_repository import UserRepository
 import structlog
 
 logger = structlog.get_logger(__name__)
-router = APIRouter(prefix="/users", tags=["users"])
+router = APIRouter(prefix="/users", tags=["Users"])
 
 
 @router.post("/register", response_model=ApiResponse[UserResponse], status_code=status.HTTP_201_CREATED)
