@@ -3,7 +3,7 @@ User API Endpoints
 用户相关的 API 端点
 """
 
-from typing import Optional
+from typing import Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status, Header, Request
 from sqlalchemy.orm import Session
 from app.core.security import (
@@ -15,6 +15,7 @@ from app.core.security import (
 from app.core.database import get_db
 from app.models.user import User
 from app.schemas.user import UserCreate, UserLogin, UserResponse, Token, UserUpdate, SendSmsRequest
+from app.schemas.response import ApiResponse
 from app.services.sms_service import get_sms_service, generate_and_store_code, verify_code, update_sms_log_status
 import json
 from app.core.config import settings
@@ -24,7 +25,7 @@ from app.repositories.user_repository import UserRepository
 router = APIRouter(prefix="/users", tags=["users"])
 
 
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=ApiResponse[UserResponse], status_code=status.HTTP_201_CREATED)
 async def register(
     user_data: UserCreate,
     db: Session = Depends(get_db),
@@ -33,6 +34,9 @@ async def register(
     """
     User registration
     用户注册（需要短信验证码）
+    
+    Returns:
+        ApiResponse[UserResponse]: 统一响应格式，data 为用户信息
     """
     # Check if user exists
     if user_repo.exists_by_phone(user_data.phone):
@@ -70,13 +74,14 @@ async def register(
         hashed_password=hashed_password
     )
     
-    return new_user
+    return ApiResponse.success(data=new_user, message="注册成功")
 
 
-@router.post("/login", response_model=Token)
+@router.post("/login", response_model=ApiResponse[Token])
 async def login(
     user_data: UserLogin,
     x_device_type: Optional[str] = Header("web", alias="X-Device-Type"),
+    db: Session = Depends(get_db),
     user_repo: UserRepository = Depends(get_user_repository)
 ):
     """
@@ -89,7 +94,7 @@ async def login(
                       新登录会自动踢掉该设备类型的旧会话
     
     Returns:
-        Token: JWT访问令牌
+        ApiResponse[Token]: 统一响应格式，data 包含 access_token 和 token_type
         
     Notes:
         - 同一用户可以在不同设备类型同时登录
@@ -164,22 +169,26 @@ async def login(
         # Redis未初始化，降级为普通JWT认证
         pass
     
-    return {"access_token": access_token, "token_type": "bearer"}
+    token_data = Token(access_token=access_token, token_type="bearer")
+    return ApiResponse.success(data=token_data, message="登录成功")
 
 
-@router.get("/me", response_model=UserResponse)
+@router.get("/me", response_model=ApiResponse[UserResponse])
 async def get_current_user_info(
     current_user: User = Depends(get_current_active_user)
 ):
     """
     Get current user info
     获取当前用户信息
+    
+    Returns:
+        ApiResponse[UserResponse]: 统一响应格式，data 为当前用户信息
     """
-    return current_user
+    return ApiResponse.success(data=current_user)
 
 
 
-@router.post("/send_sms_code")
+@router.post("/send_sms_code", response_model=ApiResponse[Dict[str, Any]])
 async def send_sms_code(
     payload: SendSmsRequest,
     request: Request,
@@ -195,6 +204,9 @@ async def send_sms_code(
     
     Body:
         {"phone": "187xxx", "purpose": "register"}
+    
+    Returns:
+        ApiResponse[Dict]: 统一响应格式，data 包含 phone 和 expires_in
     """
     phone = payload.phone
     purpose = payload.purpose or "register"
@@ -248,13 +260,16 @@ async def send_sms_code(
             detail=f"短信发送异常: {str(e)}"
         )
 
-    return {
-        "message": "短信验证码已发送",
-        "expires_in": settings.SMS_CODE_EXPIRE_SECONDS
-    }
+    return ApiResponse.success(
+        data={
+            "phone": phone,
+            "expires_in": settings.SMS_CODE_EXPIRE_SECONDS
+        },
+        message="验证码已发送"
+    )
 
 
-@router.put("/me", response_model=UserResponse)
+@router.put("/me", response_model=ApiResponse[UserResponse])
 async def update_current_user(
     user_data: UserUpdate,
     current_user: User = Depends(get_current_active_user),
@@ -263,15 +278,18 @@ async def update_current_user(
     """
     Update current user
     更新当前用户信息
+    
+    Returns:
+        ApiResponse[UserResponse]: 统一响应格式，data 为更新后的用户信息
     """
     # Update user fields
     update_fields = user_data.model_dump(exclude_unset=True)
     updated_user = user_repo.update(current_user, **update_fields)
     
-    return updated_user
+    return ApiResponse.success(data=updated_user, message="更新成功")
 
 
-@router.post("/logout")
+@router.post("/logout", response_model=ApiResponse[Dict[str, str]])
 async def logout(
     x_device_type: Optional[str] = Header("web", alias="X-Device-Type"),
     current_user: User = Depends(get_current_active_user)
@@ -297,13 +315,19 @@ async def logout(
         
         session_manager.revoke_session(current_user.id, device_type)
         
-        return {"message": f"已登出 {device_type} 设备"}
+        return ApiResponse.success(
+            data={"device_type": device_type},
+            message=f"已登出 {device_type} 设备"
+        )
     except RuntimeError:
         # Redis未初始化
-        return {"message": "登出成功（会话管理未启用）"}
+        return ApiResponse.success(
+            data={"device_type": device_type},
+            message="登出成功（会话管理未启用）"
+        )
 
 
-@router.post("/logout/all")
+@router.post("/logout/all", response_model=ApiResponse[Dict[str, Any]])
 async def logout_all(
     current_user: User = Depends(get_current_active_user)
 ):
@@ -314,6 +338,9 @@ async def logout_all(
     Notes:
         - 登出所有设备类型的会话
         - 所有已登录的设备都需要重新登录
+    
+    Returns:
+        ApiResponse[Dict]: 统一响应格式，data 包含 revoked_count
     """
     try:
         from app.services.session_manager import get_session_manager
@@ -321,12 +348,18 @@ async def logout_all(
         
         revoked_count = session_manager.revoke_all_sessions(current_user.id)
         
-        return {"message": f"已登出所有设备，共 {revoked_count} 个活跃会话"}
+        return ApiResponse.success(
+            data={"revoked_count": revoked_count},
+            message=f"已登出所有设备，共 {revoked_count} 个活跃会话"
+        )
     except RuntimeError:
-        return {"message": "登出成功（会话管理未启用）"}
+        return ApiResponse.success(
+            data={"revoked_count": 0},
+            message="登出成功（会话管理未启用）"
+        )
 
 
-@router.get("/sessions")
+@router.get("/sessions", response_model=ApiResponse[Dict[str, Any]])
 async def get_active_sessions(
     current_user: User = Depends(get_current_active_user)
 ):
@@ -335,7 +368,7 @@ async def get_active_sessions(
     查询当前用户的所有活跃会话
     
     Returns:
-        所有设备类型的活跃会话信息
+        ApiResponse[Dict]: 统一响应格式，data 包含 user_id、active_sessions、total_count
     """
     try:
         from app.services.session_manager import get_session_manager
@@ -343,15 +376,19 @@ async def get_active_sessions(
         
         sessions = session_manager.get_active_sessions(current_user.id)
         
-        return {
-            "user_id": current_user.id,
-            "active_sessions": sessions,
-            "total_count": len(sessions)
-        }
+        return ApiResponse.success(
+            data={
+                "user_id": current_user.id,
+                "active_sessions": sessions,
+                "total_count": len(sessions)
+            }
+        )
     except RuntimeError:
-        return {
-            "user_id": current_user.id,
-            "active_sessions": {},
-            "total_count": 0,
-            "message": "会话管理未启用"
-        }
+        return ApiResponse.success(
+            data={
+                "user_id": current_user.id,
+                "active_sessions": {},
+                "total_count": 0
+            },
+            message="会话管理未启用"
+        )
