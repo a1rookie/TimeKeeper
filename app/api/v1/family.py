@@ -5,12 +5,15 @@ Family API
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.schemas.response import ApiResponse
+import structlog
 
+from app.schemas.response import ApiResponse
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.user import User
 from app.models.family_member import MemberRole
+
+logger = structlog.get_logger(__name__)
 from app.schemas.family import (
     FamilyGroupCreate,
     FamilyGroupUpdate,
@@ -41,6 +44,13 @@ async def create_family_group(
     Returns:
         ApiResponse[FamilyGroupDetail]: 统一响应格式，data 为家庭组详情
     """
+    logger.info(
+        "family_group_create_request",
+        user_id=current_user.id,
+        group_name=data.name,
+        event="family_group_create_start"
+    )
+    
     group_repo = FamilyGroupRepository(db)
     member_repo = FamilyMemberRepository(db)
     
@@ -56,6 +66,14 @@ async def create_family_group(
         group_id=group.id,
         user_id=current_user.id,
         role=MemberRole.ADMIN
+    )
+    
+    logger.info(
+        "family_group_created",
+        group_id=group.id,
+        creator_id=current_user.id,
+        group_name=group.name,
+        event="family_group_create_success"
     )
     
     # 获取完整信息

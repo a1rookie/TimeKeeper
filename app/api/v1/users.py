@@ -21,7 +21,9 @@ import json
 from app.core.config import settings
 from app.repositories import get_user_repository
 from app.repositories.user_repository import UserRepository
+import structlog
 
+logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/users", tags=["users"])
 
 
@@ -72,6 +74,15 @@ async def register(
         phone=user_data.phone,
         nickname=user_data.nickname,
         hashed_password=hashed_password
+    )
+    
+    # 记录用户注册事件
+    logger.info(
+        "user_registered",
+        user_id=new_user.id,
+        phone=user_data.phone,
+        nickname=user_data.nickname,
+        event="user_registration_success"
     )
     
     return ApiResponse.success(data=new_user, message="注册成功")
@@ -162,12 +173,36 @@ async def login(
         )
         
         if old_jti:
-            # 可以记录日志：旧会话被踢出
-            pass
+            # 记录旧会话被踢出事件（安全审计）
+            logger.info(
+                "session_kicked_out",
+                user_id=user.id,
+                device_type=device_type,
+                old_jti=old_jti[:8] + "...",  # 只记录前8位
+                new_jti=jti[:8] + "...",
+                phone=user.phone,
+                event="user_login_kick_previous_session"
+            )
             
-    except RuntimeError:
+    except RuntimeError as e:
         # Redis未初始化，降级为普通JWT认证
-        pass
+        logger.warning(
+            "session_manager_unavailable",
+            user_id=user.id,
+            device_type=device_type,
+            reason=str(e),
+            fallback="jwt_only_mode"
+        )
+    
+    # 记录成功登录事件
+    logger.info(
+        "user_login_success",
+        user_id=user.id,
+        phone=user.phone,
+        device_type=device_type,
+        login_method="sms_code" if user_data.sms_code else "password",
+        event="user_login"
+    )
     
     token_data = Token(access_token=access_token, token_type="bearer")
     return ApiResponse.success(data=token_data, message="登录成功")
@@ -315,12 +350,27 @@ async def logout(
         
         session_manager.revoke_session(current_user.id, device_type)
         
+        # 记录登出事件
+        logger.info(
+            "user_logout",
+            user_id=current_user.id,
+            phone=current_user.phone,
+            device_type=device_type,
+            event="user_logout_single_device"
+        )
+        
         return ApiResponse.success(
             data={"device_type": device_type},
             message=f"已登出 {device_type} 设备"
         )
-    except RuntimeError:
+    except RuntimeError as e:
         # Redis未初始化
+        logger.warning(
+            "session_manager_unavailable_on_logout",
+            user_id=current_user.id,
+            device_type=device_type,
+            reason=str(e)
+        )
         return ApiResponse.success(
             data={"device_type": device_type},
             message="登出成功（会话管理未启用）"
@@ -348,11 +398,26 @@ async def logout_all(
         
         revoked_count = session_manager.revoke_all_sessions(current_user.id)
         
+        # 记录全局登出事件（高风险操作）
+        logger.warning(
+            "user_logout_all_devices",
+            user_id=current_user.id,
+            phone=current_user.phone,
+            revoked_count=revoked_count,
+            event="user_logout_all_devices",
+            security_level="high"
+        )
+        
         return ApiResponse.success(
             data={"revoked_count": revoked_count},
             message=f"已登出所有设备，共 {revoked_count} 个活跃会话"
         )
-    except RuntimeError:
+    except RuntimeError as e:
+        logger.warning(
+            "session_manager_unavailable_on_logout_all",
+            user_id=current_user.id,
+            reason=str(e)
+        )
         return ApiResponse.success(
             data={"revoked_count": 0},
             message="登出成功（会话管理未启用）"

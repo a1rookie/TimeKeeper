@@ -6,12 +6,15 @@ from typing import List
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+import structlog
 
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.user import User
 from app.models.reminder_completion import CompletionStatus
 from app.schemas.response import ApiResponse
+
+logger = structlog.get_logger(__name__)
 from app.schemas.completion import (
     ReminderCompletionCreate,
     ReminderCompletionResponse,
@@ -103,14 +106,31 @@ async def complete_reminder(
                 next_remind_time=next_time
             )
             
-            # TODO: 创建新的推送任务
-            # from app.repositories.push_task_repository import PushTaskRepository
-            # push_task_repo = PushTaskRepository(db)
-            # push_task_repo.create_for_reminder(reminder, next_time)
+            # 创建新的推送任务
+            from app.services.push_task_service import create_push_task_for_reminder
+            await create_push_task_for_reminder(db, reminder)
     
-    # TODO: 如果是家庭共享提醒，通知其他成员
-    # if reminder.family_group_id:
-    #     notify_family_members(reminder, completion, current_user)
+    # 如果是家庭共享提醒，通知其他家庭成员
+    if reminder.family_group_id:
+        from app.services.family_notification_service import get_notification_service
+        
+        notification_service = get_notification_service(db)
+        await notification_service.notify_reminder_completed(
+            family_group_id=reminder.family_group_id,
+            sender_id=current_user.id,
+            reminder_id=reminder.id,
+            completion_id=completion.id,
+            reminder_title=reminder.title,
+            completed_status=data.status.value
+        )
+        
+        logger.info(
+            "family_reminder_completed",
+            reminder_id=reminder.id,
+            family_group_id=reminder.family_group_id,
+            completed_by=current_user.id,
+            event="family_reminder_completion"
+        )
     
     return ApiResponse.success(data=ReminderCompletionResponse(
         id=completion.id,

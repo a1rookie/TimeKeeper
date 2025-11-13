@@ -5,9 +5,12 @@ Template API
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+import structlog
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+
+logger = structlog.get_logger(__name__)
 from app.models.user import User
 from app.models.template_share import ShareType
 from app.schemas.response import ApiResponse
@@ -523,3 +526,193 @@ async def unlike_template(
     share_repo.decrement_like(share_id)
     
     return None
+
+
+# ==================== 模板市场 ====================
+
+@router.get("/marketplace", response_model=ApiResponse[List[TemplateShareDetail]])
+async def get_template_marketplace(
+    category: Optional[str] = Query(None, description="分类筛选"),
+    sort_by: str = Query("popular", description="排序方式: popular(热门)/latest(最新)/most_used(最常用)"),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    模板市场 - 公开模板列表
+    
+    排序方式:
+    - popular: 按点赞数排序
+    - latest: 按创建时间排序
+    - most_used: 按使用次数排序
+    """
+    share_repo = TemplateShareRepository(db)
+    template_repo = ReminderTemplateRepository(db)
+    custom_template_repo = UserCustomTemplateRepository(db)
+    
+    # 获取公开分享列表
+    shares = await share_repo.get_public_shares(limit=limit * 2, offset=offset)
+    
+    # 过滤和排序
+    if category:
+        # 需要加载模板信息以过滤分类
+        filtered_shares = []
+        for share in shares:
+            if share.template_id:  # 系统模板
+                template = await template_repo.get_by_id(share.template_id)
+                if template and template.category == category:
+                    filtered_shares.append(share)
+            else:  # 自定义模板
+                template = await custom_template_repo.get_by_id(share.custom_template_id)
+                if template and template.category == category:
+                    filtered_shares.append(share)
+        shares = filtered_shares
+    
+    # 排序
+    if sort_by == "popular":
+        shares = sorted(shares, key=lambda x: x.like_count, reverse=True)
+    elif sort_by == "latest":
+        shares = sorted(shares, key=lambda x: x.created_at, reverse=True)
+    elif sort_by == "most_used":
+        shares = sorted(shares, key=lambda x: x.usage_count, reverse=True)
+    
+    # 限制返回数量
+    shares = shares[:limit]
+    
+    # 构建详细响应
+    result = []
+    for share in shares:
+        if share.template_id:
+            template = await template_repo.get_by_id(share.template_id)
+            template_name = template.name if template else "未知模板"
+            template_category = template.category if template else "other"
+        else:
+            template = await custom_template_repo.get_by_id(share.custom_template_id)
+            template_name = template.name if template else "未知模板"
+            template_category = template.category if template else "other"
+        
+        result.append(TemplateShareDetail(
+            id=share.id,
+            template_id=share.template_id,
+            custom_template_id=share.custom_template_id,
+            template_name=template_name,
+            template_category=template_category,
+            user_id=share.user_id,
+            share_type=share.share_type,
+            share_code=share.share_code,
+            share_title=share.share_title,
+            share_description=share.share_description,
+            usage_count=share.usage_count,
+            like_count=share.like_count,
+            is_active=share.is_active,
+            created_at=share.created_at
+        ))
+    
+    return ApiResponse.success(data=result, message=f"找到 {len(result)} 个公开模板")
+
+
+@router.get("/marketplace/search", response_model=ApiResponse[List[TemplateShareDetail]])
+async def search_marketplace_templates(
+    keyword: str = Query(..., min_length=1, description="搜索关键词"),
+    limit: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    搜索模板市场
+    """
+    share_repo = TemplateShareRepository(db)
+    template_repo = ReminderTemplateRepository(db)
+    custom_template_repo = UserCustomTemplateRepository(db)
+    
+    # 获取所有公开分享
+    all_shares = await share_repo.get_public_shares(limit=500, offset=0)
+    
+    # 搜索匹配的模板
+    matched_shares = []
+    for share in all_shares:
+        # 检查分享标题和描述
+        if keyword.lower() in (share.share_title or "").lower() or \
+           keyword.lower() in (share.share_description or "").lower():
+            matched_shares.append(share)
+            continue
+        
+        # 检查模板名称
+        if share.template_id:
+            template = await template_repo.get_by_id(share.template_id)
+            if template and keyword.lower() in template.name.lower():
+                matched_shares.append(share)
+        else:
+            template = await custom_template_repo.get_by_id(share.custom_template_id)
+            if template and keyword.lower() in template.name.lower():
+                matched_shares.append(share)
+    
+    # 限制返回数量
+    matched_shares = matched_shares[:limit]
+    
+    # 构建响应
+    result = []
+    for share in matched_shares:
+        if share.template_id:
+            template = await template_repo.get_by_id(share.template_id)
+            template_name = template.name if template else "未知模板"
+            template_category = template.category if template else "other"
+        else:
+            template = await custom_template_repo.get_by_id(share.custom_template_id)
+            template_name = template.name if template else "未知模板"
+            template_category = template.category if template else "other"
+        
+        result.append(TemplateShareDetail(
+            id=share.id,
+            template_id=share.template_id,
+            custom_template_id=share.custom_template_id,
+            template_name=template_name,
+            template_category=template_category,
+            user_id=share.user_id,
+            share_type=share.share_type,
+            share_code=share.share_code,
+            share_title=share.share_title,
+            share_description=share.share_description,
+            usage_count=share.usage_count,
+            like_count=share.like_count,
+            is_active=share.is_active,
+            created_at=share.created_at
+        ))
+    
+    return ApiResponse.success(data=result, message=f"找到 {len(result)} 个匹配模板")
+
+
+@router.get("/marketplace/categories", response_model=ApiResponse[List[dict]])
+async def get_marketplace_categories(
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    获取模板市场分类统计
+    """
+    share_repo = TemplateShareRepository(db)
+    template_repo = ReminderTemplateRepository(db)
+    custom_template_repo = UserCustomTemplateRepository(db)
+    
+    # 获取所有公开分享
+    all_shares = await share_repo.get_public_shares(limit=1000, offset=0)
+    
+    # 统计各分类数量
+    category_stats = {}
+    for share in all_shares:
+        if share.template_id:
+            template = await template_repo.get_by_id(share.template_id)
+            category = template.category if template else "other"
+        else:
+            template = await custom_template_repo.get_by_id(share.custom_template_id)
+            category = template.category if template else "other"
+        
+        if category not in category_stats:
+            category_stats[category] = 0
+        category_stats[category] += 1
+    
+    # 转换为列表
+    result = [
+        {"category": cat, "count": count}
+        for cat, count in sorted(category_stats.items(), key=lambda x: x[1], reverse=True)
+    ]
+    
+    return ApiResponse.success(data=result)

@@ -133,3 +133,69 @@ class TemplateShareRepository:
         share.is_active = False
         await self.db.commit()
         return True
+    
+    async def can_user_access_template(self, custom_template_id: int, user_id: int) -> bool:
+        """
+        检查用户是否可以访问指定的自定义模板
+        
+        访问条件：
+        1. 用户是模板创建者
+        2. 模板被公开分享
+        3. 模板被分享到用户所在的家庭组
+        
+        Args:
+            custom_template_id: 自定义模板ID
+            user_id: 用户ID
+            
+        Returns:
+            bool: 是否有访问权限
+        """
+        from app.models.user_custom_template import UserCustomTemplate
+        from app.repositories.family_member_repository import FamilyMemberRepository
+        
+        # 1. 检查是否为模板创建者
+        result = await self.db.execute(
+            select(UserCustomTemplate).filter(
+                and_(
+                    UserCustomTemplate.id == custom_template_id,
+                    UserCustomTemplate.user_id == user_id
+                )
+            )
+        )
+        if result.scalar_one_or_none():
+            return True
+        
+        # 2. 检查是否有公开分享
+        result = await self.db.execute(
+            select(TemplateShare).filter(
+                and_(
+                    TemplateShare.template_id == custom_template_id,
+                    TemplateShare.share_type == ShareType.PUBLIC,
+                    TemplateShare.is_active == True
+                )
+            )
+        )
+        if result.scalar_one_or_none():
+            return True
+        
+        # 3. 检查是否为家庭组分享
+        # 获取用户的所有家庭组
+        family_repo = FamilyMemberRepository(self.db)
+        user_families = await family_repo.get_user_families(user_id)
+        
+        if user_families:
+            family_ids = [f.family_group_id for f in user_families]
+            result = await self.db.execute(
+                select(TemplateShare).filter(
+                    and_(
+                        TemplateShare.template_id == custom_template_id,
+                        TemplateShare.share_type == ShareType.FAMILY,
+                        TemplateShare.family_group_id.in_(family_ids),
+                        TemplateShare.is_active == True
+                    )
+                )
+            )
+            if result.scalar_one_or_none():
+                return True
+        
+        return False
