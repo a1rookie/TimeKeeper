@@ -4,7 +4,8 @@ PushTask Repository
 """
 
 from typing import List, Optional
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from sqlalchemy import and_
 from datetime import datetime
 from app.models.push_task import PushTask, PushStatus
@@ -13,14 +14,15 @@ from app.models.push_task import PushTask, PushStatus
 class PushTaskRepository:
     """推送任务数据仓库"""
     
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         self.db = db
     
-    def get_by_id(self, task_id: int) -> Optional[PushTask]:
+    async def get_by_id(self, task_id: int) -> Optional[PushTask]:
         """根据ID获取推送任务"""
-        return self.db.query(PushTask).filter(PushTask.id == task_id).first()
+        result = await self.db.execute(select(PushTask).filter(PushTask.id == task_id))
+        return result.scalar_one_or_none()
     
-    def get_by_reminder(
+    async def get_by_reminder(
         self, 
         reminder_id: int, 
         status: Optional[PushStatus] = None
@@ -33,7 +35,7 @@ class PushTaskRepository:
         
         return query.order_by(PushTask.scheduled_time.desc()).all()
     
-    def get_pending_tasks(self, before_time: datetime) -> List[PushTask]:
+    async def get_pending_tasks(self, before_time: datetime) -> List[PushTask]:
         """获取待推送的任务（计划时间在指定时间之前）"""
         return self.db.query(PushTask).filter(
             and_(
@@ -42,7 +44,7 @@ class PushTaskRepository:
             )
         ).order_by(PushTask.priority.desc(), PushTask.scheduled_time).all()
     
-    def create(
+    async def create(
         self,
         reminder_id: int,
         user_id: int,
@@ -68,11 +70,11 @@ class PushTaskRepository:
         )
         
         self.db.add(new_task)
-        self.db.commit()
-        self.db.refresh(new_task)
+        await self.db.commit()
+        await self.db.refresh(new_task)
         return new_task
     
-    def update_status(
+    async def update_status(
         self, 
         task: PushTask, 
         status: PushStatus,
@@ -93,11 +95,11 @@ class PushTaskRepository:
         if push_response:
             task.push_response = push_response
         
-        self.db.commit()
-        self.db.refresh(task)
+        await self.db.commit()
+        await self.db.refresh(task)
         return task
     
-    def get_failed_tasks_for_retry(self, max_retries: int = 3) -> List[PushTask]:
+    async def get_failed_tasks_for_retry(self, max_retries: int = 3) -> List[PushTask]:
         """获取可重试的失败任务"""
         return self.db.query(PushTask).filter(
             and_(
@@ -106,7 +108,7 @@ class PushTaskRepository:
             )
         ).all()
     
-    def cancel_tasks_by_reminder(self, reminder_id: int) -> int:
+    async def cancel_tasks_by_reminder(self, reminder_id: int) -> int:
         """取消某个提醒的所有待推送任务"""
         result = self.db.query(PushTask).filter(
             and_(
@@ -115,10 +117,10 @@ class PushTaskRepository:
             )
         ).update({"status": PushStatus.CANCELLED})
         
-        self.db.commit()
+        await self.db.commit()
         return result
     
-    def count_by_status(self, user_id: int, status: PushStatus) -> int:
+    async def count_by_status(self, user_id: int, status: PushStatus) -> int:
         """统计用户某状态的任务数"""
         return self.db.query(PushTask).filter(
             and_(

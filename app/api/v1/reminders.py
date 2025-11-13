@@ -25,7 +25,7 @@ from app.repositories.reminder_completion_repository import ReminderCompletionRe
 from app.services.push_task_service import create_push_task_for_reminder
 from app.core.database import get_db
 from app.core.recurrence import calculate_next_occurrence
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/reminders", tags=["reminders"])
 
@@ -35,7 +35,7 @@ async def create_reminder(
     reminder_data: ReminderCreate,
     current_user: User = Depends(get_current_active_user),
     reminder_repo: ReminderRepository = Depends(get_reminder_repository),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Create a new reminder
@@ -45,7 +45,7 @@ async def create_reminder(
         ApiResponse[ReminderResponse]: 统一响应格式，data 为创建的提醒
     """
     # 使用Repository创建提醒
-    new_reminder = reminder_repo.create(
+    new_reminder = await reminder_repo.create(
         user_id=current_user.id,
         title=reminder_data.title,
         description=reminder_data.description,
@@ -62,7 +62,7 @@ async def create_reminder(
     )
     
     # 自动创建推送任务
-    create_push_task_for_reminder(db, new_reminder)
+    await create_push_task_for_reminder(db, new_reminder)
     
     return ApiResponse.success(data=new_reminder, message="创建成功")
 
@@ -82,7 +82,7 @@ async def get_reminders(
     Returns:
         ApiResponse[List[ReminderResponse]]: 统一响应格式，data 为提醒列表
     """
-    reminders = reminder_repo.get_user_reminders(
+    reminders = await reminder_repo.get_user_reminders(
         user_id=current_user.id,
         skip=skip,
         limit=limit,
@@ -104,7 +104,7 @@ async def get_reminder(
     Returns:
         ApiResponse[ReminderResponse]: 统一响应格式，data 为提醒详情
     """
-    reminder = reminder_repo.get_by_id(reminder_id, current_user.id)
+    reminder = await reminder_repo.get_by_id(reminder_id, current_user.id)
     
     if not reminder:
         raise HTTPException(
@@ -129,7 +129,7 @@ async def update_reminder(
     Returns:
         ApiResponse[ReminderResponse]: 统一响应格式，data 为更新后的提醒
     """
-    reminder = reminder_repo.get_by_id(reminder_id, current_user.id)
+    reminder = await reminder_repo.get_by_id(reminder_id, current_user.id)
     
     if not reminder:
         raise HTTPException(
@@ -139,7 +139,7 @@ async def update_reminder(
     
     # Update fields
     update_data = reminder_data.model_dump(exclude_unset=True)
-    updated_reminder = reminder_repo.update(reminder, **update_data)
+    updated_reminder = await reminder_repo.update(reminder, **update_data)
     
     return ApiResponse.success(data=updated_reminder, message="更新成功")
 
@@ -157,7 +157,7 @@ async def delete_reminder(
     Returns:
         ApiResponse[None]: 统一响应格式，data 为空
     """
-    reminder = reminder_repo.get_by_id(reminder_id, current_user.id)
+    reminder = await reminder_repo.get_by_id(reminder_id, current_user.id)
     
     if not reminder:
         raise HTTPException(
@@ -165,7 +165,7 @@ async def delete_reminder(
             detail="提醒不存在"
         )
     
-    reminder_repo.delete(reminder)
+    await reminder_repo.delete(reminder)
     
     return ApiResponse.success(message="删除成功")
 
@@ -177,7 +177,7 @@ async def complete_reminder(
     current_user: User = Depends(get_current_active_user),
     reminder_repo: ReminderRepository = Depends(get_reminder_repository),
     completion_repo: ReminderCompletionRepository = Depends(get_reminder_completion_repository),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Mark reminder as completed
@@ -193,7 +193,7 @@ async def complete_reminder(
         ApiResponse[ReminderResponse]: 统一响应格式，data 为更新后的提醒
     """
     # 1. 获取提醒
-    reminder = reminder_repo.get_by_id(reminder_id, current_user.id)
+    reminder = await reminder_repo.get_by_id(reminder_id, current_user.id)
     if not reminder:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -201,11 +201,11 @@ async def complete_reminder(
         )
     
     # 2. 标记完成
-    reminder = reminder_repo.mark_completed(reminder, current_user.id)
+    reminder = await reminder_repo.mark_completed(reminder, current_user.id)
     
     # 3. 记录完成记录
     note = completion_data.note if completion_data else None
-    completion_repo.create(
+    await completion_repo.create(
         reminder_id=reminder.id,
         user_id=current_user.id,
         scheduled_time=reminder.next_remind_time,
@@ -226,11 +226,11 @@ async def complete_reminder(
         reminder.last_remind_time = reminder.completed_at
         reminder.is_completed = False
         reminder.completed_at = None
-        db.commit()
-        db.refresh(reminder)
+        await db.commit()
+        await db.refresh(reminder)
         
         # 5. 创建新的推送任务
-        create_push_task_for_reminder(db, reminder)
+        await create_push_task_for_reminder(db, reminder)
     
     return ApiResponse.success(data=reminder, message="已标记为完成")
 
@@ -250,7 +250,7 @@ async def uncomplete_reminder(
         ApiResponse[ReminderResponse]: 统一响应格式，data 为更新后的提醒
     """
     # 1. 获取提醒
-    reminder = reminder_repo.get_by_id(reminder_id, current_user.id)
+    reminder = await reminder_repo.get_by_id(reminder_id, current_user.id)
     if not reminder:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -258,10 +258,10 @@ async def uncomplete_reminder(
         )
     
     # 2. 取消完成状态
-    reminder = reminder_repo.mark_uncompleted(reminder)
+    reminder = await reminder_repo.mark_uncompleted(reminder)
     
     # 3. 删除最新的完成记录
-    completion_repo.delete_latest(reminder_id)
+    await completion_repo.delete_latest(reminder_id)
     
     return ApiResponse.success(data=reminder, message="已取消完成状态")
 
@@ -283,7 +283,7 @@ async def get_reminder_completions(
         ApiResponse[List[ReminderCompletionResponse]]: 统一响应格式，data 为完成记录列表
     """
     # 验证提醒所有权
-    reminder = reminder_repo.get_by_id(reminder_id, current_user.id)
+    reminder = await reminder_repo.get_by_id(reminder_id, current_user.id)
     if not reminder:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -291,12 +291,12 @@ async def get_reminder_completions(
         )
     
     # 获取完成记录
-    completions = completion_repo.get_by_reminder(reminder_id, skip, limit)
+    completions = await completion_repo.get_by_reminder(reminder_id, skip, limit)
     return ApiResponse.success(data=completions)
 
 
 @router.post("/voice", response_model=ApiResponse[ReminderResponse], status_code=status.HTTP_201_CREATED)
-async def create_reminder_from_voice(voice_data: VoiceReminderCreate, db: Session = Depends(get_db)):
+async def create_reminder_from_voice(voice_data: VoiceReminderCreate, db: AsyncSession = Depends(get_db)):
     """
     Create reminder from voice input
     通过语音创建提醒
@@ -313,7 +313,7 @@ async def create_reminder_from_voice(voice_data: VoiceReminderCreate, db: Sessio
 
 
 @router.post("/quick", response_model=ApiResponse[ReminderResponse], status_code=status.HTTP_201_CREATED)
-async def create_quick_reminder(quick_data: QuickReminderCreate, db: Session = Depends(get_db)):
+async def create_quick_reminder(quick_data: QuickReminderCreate, db: AsyncSession = Depends(get_db)):
     """
     Create reminder from template
     从模板快速创建提醒

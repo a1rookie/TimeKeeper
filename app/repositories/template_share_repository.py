@@ -3,7 +3,8 @@ Template Share Repository
 模板分享数据访问层
 """
 from typing import List, Optional
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from sqlalchemy import and_, desc
 from app.models.template_share import TemplateShare, ShareType
 import secrets
@@ -13,17 +14,17 @@ import string
 class TemplateShareRepository:
     """模板分享数据访问"""
     
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         self.db = db
     
-    def _generate_share_code(self) -> str:
+    async def _generate_share_code(self) -> str:
         """生成唯一分享码"""
         while True:
             code = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(10))
             if not self.get_by_share_code(code):
                 return code
     
-    def create(
+    async def create(
         self,
         template_id: int,
         user_id: int,
@@ -46,15 +47,16 @@ class TemplateShareRepository:
             like_count=0
         )
         self.db.add(share)
-        self.db.commit()
-        self.db.refresh(share)
+        await self.db.commit()
+        await self.db.refresh(share)
         return share
     
-    def get_by_id(self, share_id: int) -> Optional[TemplateShare]:
+    async def get_by_id(self, share_id: int) -> Optional[TemplateShare]:
         """根据ID查询分享"""
-        return self.db.query(TemplateShare).filter(TemplateShare.id == share_id).first()
+        result = await self.db.execute(select(TemplateShare).filter(TemplateShare.id == share_id))
+        return result.scalar_one_or_none()
     
-    def get_by_share_code(self, share_code: str) -> Optional[TemplateShare]:
+    async def get_by_share_code(self, share_code: str) -> Optional[TemplateShare]:
         """根据分享码查询分享"""
         return self.db.query(TemplateShare).filter(
             and_(
@@ -63,7 +65,7 @@ class TemplateShareRepository:
             )
         ).first()
     
-    def get_public_shares(self, limit: int = 50, offset: int = 0) -> List[TemplateShare]:
+    async def get_public_shares(self, limit: int = 50, offset: int = 0) -> List[TemplateShare]:
         """获取公开分享列表"""
         return self.db.query(TemplateShare).filter(
             and_(
@@ -72,7 +74,7 @@ class TemplateShareRepository:
             )
         ).order_by(desc(TemplateShare.like_count)).limit(limit).offset(offset).all()
     
-    def get_family_shares(self, family_group_id: int) -> List[TemplateShare]:
+    async def get_family_shares(self, family_group_id: int) -> List[TemplateShare]:
         """获取家庭组分享列表"""
         return self.db.query(TemplateShare).filter(
             and_(
@@ -82,7 +84,7 @@ class TemplateShareRepository:
             )
         ).order_by(desc(TemplateShare.created_at)).all()
     
-    def get_user_shares(self, user_id: int) -> List[TemplateShare]:
+    async def get_user_shares(self, user_id: int) -> List[TemplateShare]:
         """获取用户的所有分享"""
         return self.db.query(TemplateShare).filter(
             and_(
@@ -91,27 +93,27 @@ class TemplateShareRepository:
             )
         ).order_by(desc(TemplateShare.created_at)).all()
     
-    def increment_usage(self, share_id: int) -> bool:
+    async def increment_usage(self, share_id: int) -> bool:
         """增加使用次数"""
         share = self.get_by_id(share_id)
         if not share:
             return False
         
         share.usage_count += 1
-        self.db.commit()
+        await self.db.commit()
         return True
     
-    def increment_like(self, share_id: int) -> bool:
+    async def increment_like(self, share_id: int) -> bool:
         """增加点赞数"""
         share = self.get_by_id(share_id)
         if not share:
             return False
         
         share.like_count += 1
-        self.db.commit()
+        await self.db.commit()
         return True
     
-    def decrement_like(self, share_id: int) -> bool:
+    async def decrement_like(self, share_id: int) -> bool:
         """减少点赞数"""
         share = self.get_by_id(share_id)
         if not share:
@@ -119,15 +121,15 @@ class TemplateShareRepository:
         
         if share.like_count > 0:
             share.like_count -= 1
-            self.db.commit()
+            await self.db.commit()
         return True
     
-    def deactivate(self, share_id: int) -> bool:
+    async def deactivate(self, share_id: int) -> bool:
         """停用分享"""
         share = self.get_by_id(share_id)
         if not share:
             return False
         
         share.is_active = False
-        self.db.commit()
+        await self.db.commit()
         return True

@@ -3,7 +3,8 @@ User Custom Template Repository
 用户自定义模板数据访问层
 """
 from typing import List, Optional
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from sqlalchemy import and_
 from app.models.user_custom_template import UserCustomTemplate
 
@@ -11,10 +12,10 @@ from app.models.user_custom_template import UserCustomTemplate
 class UserCustomTemplateRepository:
     """用户自定义模板数据访问"""
     
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         self.db = db
     
-    def create(
+    async def create(
         self,
         user_id: int,
         name: str,
@@ -35,23 +36,24 @@ class UserCustomTemplateRepository:
             created_from_template_id=created_from_template_id
         )
         self.db.add(template)
-        self.db.commit()
-        self.db.refresh(template)
+        await self.db.commit()
+        await self.db.refresh(template)
         return template
     
-    def get_by_id(self, template_id: int) -> Optional[UserCustomTemplate]:
+    async def get_by_id(self, template_id: int) -> Optional[UserCustomTemplate]:
         """根据ID查询模板"""
-        return self.db.query(UserCustomTemplate).filter(
+        result = await self.db.execute(select(UserCustomTemplate).filter(
             UserCustomTemplate.id == template_id
-        ).first()
+        ))
+        return result.scalar_one_or_none()
     
-    def get_user_templates(self, user_id: int) -> List[UserCustomTemplate]:
+    async def get_user_templates(self, user_id: int) -> List[UserCustomTemplate]:
         """查询用户的所有自定义模板"""
         return self.db.query(UserCustomTemplate).filter(
             UserCustomTemplate.user_id == user_id
         ).order_by(UserCustomTemplate.created_at.desc()).all()
     
-    def get_by_user_and_name(self, user_id: int, name: str) -> Optional[UserCustomTemplate]:
+    async def get_by_user_and_name(self, user_id: int, name: str) -> Optional[UserCustomTemplate]:
         """根据用户和名称查询模板"""
         return self.db.query(UserCustomTemplate).filter(
             and_(
@@ -60,7 +62,7 @@ class UserCustomTemplateRepository:
             )
         ).first()
     
-    def update(self, template_id: int, **kwargs) -> Optional[UserCustomTemplate]:
+    async def update(self, template_id: int, **kwargs) -> Optional[UserCustomTemplate]:
         """更新模板"""
         template = self.get_by_id(template_id)
         if not template:
@@ -70,21 +72,21 @@ class UserCustomTemplateRepository:
             if hasattr(template, key):
                 setattr(template, key, value)
         
-        self.db.commit()
-        self.db.refresh(template)
+        await self.db.commit()
+        await self.db.refresh(template)
         return template
     
-    def delete(self, template_id: int) -> bool:
+    async def delete(self, template_id: int) -> bool:
         """删除模板"""
         template = self.get_by_id(template_id)
         if not template:
             return False
         
-        self.db.delete(template)
-        self.db.commit()
+        await self.db.delete(template)
+        await self.db.commit()
         return True
     
-    def get_templates_from_system(self, user_id: int, system_template_id: int) -> List[UserCustomTemplate]:
+    async def get_templates_from_system(self, user_id: int, system_template_id: int) -> List[UserCustomTemplate]:
         """查询用户基于某个系统模板创建的所有模板"""
         return self.db.query(UserCustomTemplate).filter(
             and_(

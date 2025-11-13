@@ -4,7 +4,8 @@ Push Log Repository
 """
 from typing import List, Optional
 from datetime import datetime, timedelta
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from sqlalchemy import and_, desc
 from app.models.push_log import PushLog, PushStatus, UserAction
 
@@ -12,10 +13,10 @@ from app.models.push_log import PushLog, PushStatus, UserAction
 class PushLogRepository:
     """推送日志数据访问"""
     
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         self.db = db
     
-    def create(
+    async def create(
         self,
         push_task_id: int,
         channel: str,
@@ -38,21 +39,22 @@ class PushLogRepository:
             response_time_seconds=response_time_seconds
         )
         self.db.add(log)
-        self.db.commit()
-        self.db.refresh(log)
+        await self.db.commit()
+        await self.db.refresh(log)
         return log
     
-    def get_by_id(self, log_id: int) -> Optional[PushLog]:
+    async def get_by_id(self, log_id: int) -> Optional[PushLog]:
         """根据ID查询日志"""
-        return self.db.query(PushLog).filter(PushLog.id == log_id).first()
+        result = await self.db.execute(select(PushLog).filter(PushLog.id == log_id))
+        return result.scalar_one_or_none()
     
-    def get_by_task(self, push_task_id: int) -> List[PushLog]:
+    async def get_by_task(self, push_task_id: int) -> List[PushLog]:
         """查询推送任务的所有日志"""
         return self.db.query(PushLog).filter(
             PushLog.push_task_id == push_task_id
         ).order_by(PushLog.created_at).all()
     
-    def get_failed_logs(
+    async def get_failed_logs(
         self,
         hours: int = 24,
         limit: int = 100
@@ -66,7 +68,7 @@ class PushLogRepository:
             )
         ).order_by(desc(PushLog.created_at)).limit(limit).all()
     
-    def get_channel_stats(self, channel: str, days: int = 7) -> dict:
+    async def get_channel_stats(self, channel: str, days: int = 7) -> dict:
         """统计渠道推送效果"""
         since = datetime.utcnow() - timedelta(days=days)
         
@@ -101,7 +103,7 @@ class PushLogRepository:
             "success_rate": round(success / total * 100, 2) if total > 0 else 0
         }
     
-    def update_user_action(
+    async def update_user_action(
         self,
         log_id: int,
         user_action: UserAction,
@@ -114,6 +116,6 @@ class PushLogRepository:
         
         log.user_action = user_action
         log.response_time_seconds = response_time_seconds
-        self.db.commit()
-        self.db.refresh(log)
+        await self.db.commit()
+        await self.db.refresh(log)
         return log

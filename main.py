@@ -14,11 +14,11 @@ from app.api.v1 import users, reminders, push_tasks, family, completions, templa
 from app.services.push_scheduler import get_scheduler
 from app.core.redis import get_redis, close_redis
 from app.services.session_manager import init_session_manager
-import logging
+import structlog
 
 # 初始化日志系统
 setup_logging()
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 @asynccontextmanager
@@ -35,22 +35,22 @@ async def lifespan(app: FastAPI):
         redis_client = get_redis()
         if redis_client:
             init_session_manager(redis_client)
-            logger.info("✅ Session management initialized with Redis")
+            logger.info("[OK] Session management initialized with Redis")
         else:
-            logger.warning("⚠️  Session management disabled (Redis unavailable)")
+            logger.warning("[WARN] Session management disabled (Redis unavailable)")
     except Exception as e:
-        logger.warning(f"⚠️  Session management initialization failed: {e}")
+        logger.warning(f"[WARN] Session management initialization failed: {e}")
     
     # 启动推送调度器（如果启用）
     if settings.JPUSH_ENABLED:
         try:
             scheduler = get_scheduler()
             await scheduler.start()
-            logger.info("✅ Push scheduler started successfully")
+            logger.info("[OK] Push scheduler started successfully")
         except Exception as e:
-            logger.error(f"❌ Failed to start push scheduler: {e}")
+            logger.error(f"[ERROR] Failed to start push scheduler: {e}")
     else:
-        logger.info("⚠️  Push scheduler disabled (JPUSH_ENABLED=false)")
+        logger.info("[INFO] Push scheduler disabled (JPUSH_ENABLED=false)")
     
     yield
     
@@ -60,18 +60,18 @@ async def lifespan(app: FastAPI):
     # 关闭Redis连接
     try:
         close_redis()
-        logger.info("✅ Redis connection closed")
+        logger.info("[OK] Redis connection closed")
     except Exception as e:
-        logger.error(f"❌ Failed to close Redis: {e}")
+        logger.error(f"[ERROR] Failed to close Redis: {e}")
     
     # 停止推送调度器
     if settings.JPUSH_ENABLED:
         try:
             scheduler = get_scheduler()
             await scheduler.stop()
-            logger.info("✅ Push scheduler stopped successfully")
+            logger.info("[OK] Push scheduler stopped successfully")
         except Exception as e:
-            logger.error(f"❌ Failed to stop push scheduler: {e}")
+            logger.error(f"[ERROR] Failed to stop push scheduler: {e}")
 
 
 # Create FastAPI application

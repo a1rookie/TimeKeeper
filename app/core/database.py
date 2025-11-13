@@ -1,35 +1,46 @@
 """
 Database Configuration
-数据库连接配置
+数据库连接配置 - 异步版本
 """
 
-from sqlalchemy import create_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
 from app.core.config import settings
 
-# Create database engine
-engine = create_engine(
-    settings.DATABASE_URL,
-    pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=20
+# 将 postgresql:// 替换为 postgresql+asyncpg://
+async_database_url = settings.DATABASE_URL.replace(
+    "postgresql://", "postgresql+asyncpg://"
 )
 
-# Create session factory
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# Create async database engine
+engine: AsyncEngine = create_async_engine(
+    async_database_url,
+    pool_pre_ping=True,
+    pool_size=10,
+    max_overflow=20,
+    echo=False  # 设置为 True 可以看到 SQL 日志
+)
+
+# Create async session factory
+async_session_maker = async_sessionmaker(
+    engine,
+    class_=AsyncSession,
+    autocommit=False,
+    autoflush=False,
+    expire_on_commit=False
+)
 
 # Base class for models
 Base = declarative_base()
 
 
-def get_db():
+async def get_db() -> AsyncSession:
     """
-    Database dependency for FastAPI
-    获取数据库会话
+    Async database dependency for FastAPI
+    获取异步数据库会话
     """
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+    async with async_session_maker() as session:
+        try:
+            yield session
+        finally:
+            await session.close()

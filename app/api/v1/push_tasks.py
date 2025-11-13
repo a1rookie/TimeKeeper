@@ -4,13 +4,14 @@ Push Task API Endpoints
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 
 from app.core.database import get_db
 from app.core.security import get_current_active_user
 from app.models.user import User
 from app.models.push_task import PushStatus
+from app.schemas.response import ApiResponse
 from app.schemas.push_task import (
     PushTaskCreate,
     PushTaskResponse,
@@ -23,14 +24,14 @@ from app.services.push_scheduler import create_push_task_for_reminder
 router = APIRouter(prefix="/push-tasks", tags=["push-tasks"])
 
 
-@router.get("/", response_model=PushTaskList)
+@router.get("/", response_model=ApiResponse[PushTaskList])
 async def list_push_tasks(
     skip: int = Query(0, ge=0, description="跳过记录数"),
     limit: int = Query(20, ge=1, le=100, description="返回记录数"),
     status: Optional[PushStatus] = Query(None, description="按状态筛选"),
     reminder_id: Optional[int] = Query(None, description="按提醒ID筛选"),
     current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     获取推送任务列表
@@ -44,19 +45,19 @@ async def list_push_tasks(
         reminder_id=reminder_id
     )
     
-    return {
+    return ApiResponse.success(data={
         "tasks": tasks,
         "total": total,
         "skip": skip,
         "limit": limit
-    }
+    })
 
 
-@router.get("/{task_id}", response_model=PushTaskResponse)
+@router.get("/{task_id}", response_model=ApiResponse[PushTaskResponse])
 async def get_push_task(
     task_id: int,
     current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     获取单个推送任务详情
@@ -73,14 +74,14 @@ async def get_push_task(
             detail="Push task not found"
         )
     
-    return task
+    return ApiResponse.success(data=task)
 
 
-@router.post("/", response_model=PushTaskResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=ApiResponse[PushTaskResponse], status_code=status.HTTP_201_CREATED)
 async def create_push_task(
     task_data: PushTaskCreate,
     current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     创建推送任务
@@ -92,7 +93,7 @@ async def create_push_task(
             user_id=current_user.id,
             scheduled_time=task_data.scheduled_time
         )
-        return task
+        return ApiResponse.success(data=task)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -105,12 +106,12 @@ async def create_push_task(
         )
 
 
-@router.put("/{task_id}", response_model=PushTaskResponse)
+@router.put("/{task_id}", response_model=ApiResponse[PushTaskResponse])
 async def update_push_task(
     task_id: int,
     task_data: PushTaskUpdate,
     current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     更新推送任务
@@ -145,14 +146,14 @@ async def update_push_task(
     
     task = PushTaskRepository.update(db=db, task=task, **update_data)
     
-    return task
+    return ApiResponse.success(data=task)
 
 
 @router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def cancel_push_task(
     task_id: int,
     current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     取消推送任务（将状态设为CANCELLED）
@@ -179,11 +180,11 @@ async def cancel_push_task(
     PushTaskRepository.cancel(db=db, task=task)
 
 
-@router.post("/{task_id}/retry", response_model=PushTaskResponse)
+@router.post("/{task_id}/retry", response_model=ApiResponse[PushTaskResponse])
 async def retry_push_task(
     task_id: int,
     current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     重试失败的推送任务
@@ -210,15 +211,15 @@ async def retry_push_task(
     # 重置状态以便重试
     task = PushTaskRepository.reset_for_retry(db=db, task=task)
     
-    return task
+    return ApiResponse.success(data=task)
 
 
-@router.get("/stats/summary")
+@router.get("/stats/summary", response_model=ApiResponse[dict])
 async def get_push_stats(
     current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     获取推送统计信息
     """
-    return PushTaskRepository.get_statistics(db=db, user_id=current_user.id)
+    return ApiResponse.success(data=PushTaskRepository.get_statistics(db=db, user_id=current_user.id))

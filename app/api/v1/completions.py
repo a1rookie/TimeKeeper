@@ -5,12 +5,13 @@ Reminder Completion API
 from typing import List
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.user import User
 from app.models.reminder_completion import CompletionStatus
+from app.schemas.response import ApiResponse
 from app.schemas.completion import (
     ReminderCompletionCreate,
     ReminderCompletionResponse,
@@ -25,10 +26,10 @@ from app.services.recurrence_service import RecurrenceService
 router = APIRouter()
 
 
-@router.post("/completions", response_model=ReminderCompletionResponse, status_code=status.HTTP_201_CREATED)
-def complete_reminder(
+@router.post("/completions", response_model=ApiResponse[ReminderCompletionResponse], status_code=status.HTTP_201_CREATED)
+async def complete_reminder(
     data: ReminderCompletionCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -43,7 +44,7 @@ def complete_reminder(
     recurrence_service = RecurrenceService()
     
     # 检查提醒是否存在
-    reminder = reminder_repo.get_by_id(data.reminder_id)
+    reminder = await reminder_repo.get_by_id(data.reminder_id)
     if not reminder:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -59,7 +60,7 @@ def complete_reminder(
     
     # 2. 如果是家庭共享提醒，检查是否为家庭成员
     if not can_complete and reminder.family_group_id:
-        if family_member_repo.is_member(reminder.family_group_id, current_user.id):
+        if await family_member_repo.is_member(reminder.family_group_id, current_user.id):
             can_complete = True
     
     if not can_complete:
@@ -80,7 +81,7 @@ def complete_reminder(
         )
     
     # 创建完成记录
-    completion = completion_repo.create(
+    completion = await completion_repo.create(
         reminder_id=data.reminder_id,
         user_id=current_user.id,
         scheduled_time=data.scheduled_time,
@@ -111,7 +112,7 @@ def complete_reminder(
     # if reminder.family_group_id:
     #     notify_family_members(reminder, completion, current_user)
     
-    return ReminderCompletionResponse(
+    return ApiResponse.success(data=ReminderCompletionResponse(
         id=completion.id,
         reminder_id=completion.reminder_id,
         user_id=completion.user_id,
@@ -120,14 +121,14 @@ def complete_reminder(
         status=completion.status,
         delay_minutes=completion.delay_minutes,
         created_at=completion.created_at
-    )
+    ))
 
 
-@router.get("/completions/reminder/{reminder_id}", response_model=List[ReminderCompletionResponse])
-def get_reminder_completions(
+@router.get("/completions/reminder/{reminder_id}", response_model=ApiResponse[List[ReminderCompletionResponse]])
+async def get_reminder_completions(
     reminder_id: int,
     limit: int = Query(50, ge=1, le=100, description="返回记录数量"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -137,7 +138,7 @@ def get_reminder_completions(
     completion_repo = ReminderCompletionRepository(db)
     
     # 检查提醒是否存在
-    reminder = reminder_repo.get_by_id(reminder_id)
+    reminder = await reminder_repo.get_by_id(reminder_id)
     if not reminder:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -148,7 +149,7 @@ def get_reminder_completions(
     can_view = reminder.user_id == current_user.id
     if not can_view and reminder.family_group_id:
         family_member_repo = FamilyMemberRepository(db)
-        can_view = family_member_repo.is_member(reminder.family_group_id, current_user.id)
+        can_view = await family_member_repo.is_member(reminder.family_group_id, current_user.id)
     
     if not can_view:
         raise HTTPException(
@@ -156,9 +157,9 @@ def get_reminder_completions(
             detail="无权查看该提醒的完成记录"
         )
     
-    completions = completion_repo.get_by_reminder(reminder_id, limit=limit)
+    completions = await completion_repo.get_by_reminder(reminder_id, limit=limit)
     
-    return [
+    return ApiResponse.success(data=[
         ReminderCompletionResponse(
             id=c.id,
             reminder_id=c.reminder_id,
@@ -169,22 +170,22 @@ def get_reminder_completions(
             delay_minutes=c.delay_minutes,
             created_at=c.created_at
         ) for c in completions
-    ]
+    ])
 
 
-@router.get("/completions/my", response_model=List[ReminderCompletionResponse])
-def get_my_completions(
+@router.get("/completions/my", response_model=ApiResponse[List[ReminderCompletionResponse]])
+async def get_my_completions(
     days: int = Query(30, ge=1, le=365, description="查询天数"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
     查询我的完成记录
     """
     completion_repo = ReminderCompletionRepository(db)
-    completions = completion_repo.get_by_user(current_user.id, days=days)
+    completions = await completion_repo.get_by_user(current_user.id, days=days)
     
-    return [
+    return ApiResponse.success(data=[
         ReminderCompletionResponse(
             id=c.id,
             reminder_id=c.reminder_id,
@@ -195,14 +196,14 @@ def get_my_completions(
             delay_minutes=c.delay_minutes,
             created_at=c.created_at
         ) for c in completions
-    ]
+    ])
 
 
-@router.get("/stats/reminder/{reminder_id}", response_model=ReminderStats)
-def get_reminder_stats(
+@router.get("/stats/reminder/{reminder_id}", response_model=ApiResponse[ReminderStats])
+async def get_reminder_stats(
     reminder_id: int,
     days: int = Query(30, ge=1, le=365, description="统计天数"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -211,7 +212,7 @@ def get_reminder_stats(
     reminder_repo = ReminderRepository(db)
     completion_repo = ReminderCompletionRepository(db)
     
-    reminder = reminder_repo.get_by_id(reminder_id)
+    reminder = await reminder_repo.get_by_id(reminder_id)
     if not reminder:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -222,7 +223,7 @@ def get_reminder_stats(
     can_view = reminder.user_id == current_user.id
     if not can_view and reminder.family_group_id:
         family_member_repo = FamilyMemberRepository(db)
-        can_view = family_member_repo.is_member(reminder.family_group_id, current_user.id)
+        can_view = await family_member_repo.is_member(reminder.family_group_id, current_user.id)
     
     if not can_view:
         raise HTTPException(
@@ -231,7 +232,7 @@ def get_reminder_stats(
         )
     
     # 获取统计数据
-    completions = completion_repo.get_by_reminder(reminder_id, limit=1000)
+    completions = await completion_repo.get_by_reminder(reminder_id, limit=1000)
     
     # 筛选指定天数内的记录
     since = datetime.utcnow() - timedelta(days=days)
@@ -242,10 +243,10 @@ def get_reminder_stats(
     delayed_count = sum(1 for c in recent_completions if c.status == CompletionStatus.DELAYED)
     skipped_count = sum(1 for c in recent_completions if c.status == CompletionStatus.SKIPPED)
     
-    completion_rate = completion_repo.get_completion_rate(reminder_id, days=days)
-    avg_delay = completion_repo.get_avg_delay_time(reminder_id, days=days)
+    completion_rate = await completion_repo.get_completion_rate(reminder_id, days=days)
+    avg_delay = await completion_repo.get_avg_delay_time(reminder_id, days=days)
     
-    return ReminderStats(
+    return ApiResponse.success(data=ReminderStats(
         reminder_id=reminder_id,
         total_count=total_count,
         completed_count=completed_count,
@@ -253,13 +254,13 @@ def get_reminder_stats(
         skipped_count=skipped_count,
         completion_rate=completion_rate,
         avg_delay_minutes=avg_delay
-    )
+    ))
 
 
-@router.get("/stats/my", response_model=UserStats)
-def get_my_stats(
+@router.get("/stats/my", response_model=ApiResponse[UserStats])
+async def get_my_stats(
     days: int = Query(30, ge=1, le=365, description="统计天数"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -269,25 +270,25 @@ def get_my_stats(
     completion_repo = ReminderCompletionRepository(db)
     
     # 统计提醒数量
-    all_reminders = reminder_repo.get_by_user(current_user.id)
+    all_reminders = await reminder_repo.get_by_user(current_user.id)
     active_reminders = [r for r in all_reminders if r.is_active]
     
     # 统计完成记录
-    completions = completion_repo.get_by_user(current_user.id, days=days)
+    completions = await completion_repo.get_by_user(current_user.id, days=days)
     total_completions = len(completions)
     
     # 计算完成率
-    completion_rate = completion_repo.get_user_completion_rate(current_user.id, days=days)
+    completion_rate = await completion_repo.get_user_completion_rate(current_user.id, days=days)
     
     # 计算平均延迟时间
     delayed_completions = [c for c in completions if c.status == CompletionStatus.DELAYED and c.delay_minutes]
     avg_delay = int(sum(c.delay_minutes for c in delayed_completions) / len(delayed_completions)) if delayed_completions else 0
     
-    return UserStats(
+    return ApiResponse.success(data=UserStats(
         user_id=current_user.id,
         total_reminders=len(all_reminders),
         active_reminders=len(active_reminders),
         total_completions=total_completions,
         completion_rate=completion_rate,
         avg_delay_minutes=avg_delay
-    )
+    ))

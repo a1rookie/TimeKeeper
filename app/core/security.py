@@ -9,7 +9,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 import bcrypt
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.database import get_db
 
@@ -88,11 +88,11 @@ security = HTTPBearer()
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get current authenticated user from JWT token
-    从 JWT 令牌获取当前认证用户
+    从 JWT 令牌获取当前认证用户 - 异步版本
     
     验证流程：
     1. 解析JWT token
@@ -102,7 +102,7 @@ async def get_current_user(
     
     Args:
         credentials: HTTP Authorization header with Bearer token
-        db: Database session
+        db: Async database session
         
     Returns:
         User object
@@ -161,7 +161,7 @@ async def get_current_user(
     
     # Get user from database using Repository
     user_repo = UserRepository(db)
-    user = user_repo.get_by_id(user_id)
+    user = await user_repo.get_by_id(user_id)
     
     if user is None:
         raise credentials_exception

@@ -3,29 +3,30 @@ Health Check & System Monitoring Endpoints
 用于生产环境监控和问题排查
 """
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.redis import get_redis
 from app.core.config import settings
+from app.schemas.response import ApiResponse
 
 router = APIRouter()
 
 
-@router.get("/health")
-def health_check():
+@router.get("/health", response_model=ApiResponse[dict])
+async def health_check():
     """
     健康检查 - 不依赖任何服务
     用于负载均衡器/k8s存活探针
     """
-    return {
+    return ApiResponse.success(data={
         "status": "healthy",
         "app": settings.APP_NAME,
         "version": settings.APP_VERSION
-    }
+    })
 
 
-@router.get("/readiness")
-def readiness_check(db: Session = Depends(get_db)):
+@router.get("/readiness", response_model=ApiResponse[dict])
+async def readiness_check(db: AsyncSession = Depends(get_db)):
     """
     就绪检查 - 检查所有依赖服务
     用于k8s就绪探针，确保服务可接受流量
@@ -58,7 +59,7 @@ def readiness_check(db: Session = Depends(get_db)):
         for status in checks.values()
     )
     
-    return {
+    return ApiResponse.success(data={
         "status": "ready" if all_healthy else "not_ready",
         "checks": checks
-    }
+    })

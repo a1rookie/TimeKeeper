@@ -3,7 +3,8 @@ Reminder Template Repository
 系统提醒模板数据访问层
 """
 from typing import List, Optional
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from sqlalchemy import and_, or_, desc
 from app.models.reminder_template import ReminderTemplate
 
@@ -11,10 +12,10 @@ from app.models.reminder_template import ReminderTemplate
 class ReminderTemplateRepository:
     """系统模板数据访问"""
     
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         self.db = db
     
-    def create(
+    async def create(
         self,
         name: str,
         category: str,
@@ -35,17 +36,18 @@ class ReminderTemplateRepository:
             usage_count=0
         )
         self.db.add(template)
-        self.db.commit()
-        self.db.refresh(template)
+        await self.db.commit()
+        await self.db.refresh(template)
         return template
     
-    def get_by_id(self, template_id: int) -> Optional[ReminderTemplate]:
+    async def get_by_id(self, template_id: int) -> Optional[ReminderTemplate]:
         """根据ID查询模板"""
-        return self.db.query(ReminderTemplate).filter(
+        result = await self.db.execute(select(ReminderTemplate).filter(
             ReminderTemplate.id == template_id
-        ).first()
+        ))
+        return result.scalar_one_or_none()
     
-    def get_by_category(self, category: str, is_active: bool = True) -> List[ReminderTemplate]:
+    async def get_by_category(self, category: str, is_active: bool = True) -> List[ReminderTemplate]:
         """根据分类查询模板"""
         query = self.db.query(ReminderTemplate).filter(
             ReminderTemplate.category == category
@@ -54,7 +56,7 @@ class ReminderTemplateRepository:
             query = query.filter(ReminderTemplate.is_active == True)
         return query.order_by(desc(ReminderTemplate.usage_count)).all()
     
-    def get_all_active(self) -> List[ReminderTemplate]:
+    async def get_all_active(self) -> List[ReminderTemplate]:
         """获取所有激活的模板"""
         return self.db.query(ReminderTemplate).filter(
             ReminderTemplate.is_active == True
@@ -63,7 +65,7 @@ class ReminderTemplateRepository:
             desc(ReminderTemplate.usage_count)
         ).all()
     
-    def search(self, keyword: str) -> List[ReminderTemplate]:
+    async def search(self, keyword: str) -> List[ReminderTemplate]:
         """搜索模板"""
         return self.db.query(ReminderTemplate).filter(
             and_(
@@ -75,23 +77,23 @@ class ReminderTemplateRepository:
             )
         ).all()
     
-    def get_popular(self, limit: int = 10) -> List[ReminderTemplate]:
+    async def get_popular(self, limit: int = 10) -> List[ReminderTemplate]:
         """获取热门模板"""
         return self.db.query(ReminderTemplate).filter(
             ReminderTemplate.is_active == True
         ).order_by(desc(ReminderTemplate.usage_count)).limit(limit).all()
     
-    def increment_usage(self, template_id: int) -> bool:
+    async def increment_usage(self, template_id: int) -> bool:
         """增加使用次数"""
         template = self.get_by_id(template_id)
         if not template:
             return False
         
         template.usage_count += 1
-        self.db.commit()
+        await self.db.commit()
         return True
     
-    def update(self, template_id: int, **kwargs) -> Optional[ReminderTemplate]:
+    async def update(self, template_id: int, **kwargs) -> Optional[ReminderTemplate]:
         """更新模板"""
         template = self.get_by_id(template_id)
         if not template:
@@ -101,16 +103,16 @@ class ReminderTemplateRepository:
             if hasattr(template, key):
                 setattr(template, key, value)
         
-        self.db.commit()
-        self.db.refresh(template)
+        await self.db.commit()
+        await self.db.refresh(template)
         return template
     
-    def deactivate(self, template_id: int) -> bool:
+    async def deactivate(self, template_id: int) -> bool:
         """停用模板"""
         template = self.get_by_id(template_id)
         if not template:
             return False
         
         template.is_active = False
-        self.db.commit()
+        await self.db.commit()
         return True

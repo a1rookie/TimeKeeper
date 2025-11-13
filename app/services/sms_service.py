@@ -11,13 +11,13 @@ from __future__ import annotations
 from typing import Optional, Tuple
 import json
 import random
-import logging
+import structlog
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.redis import get_redis
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class SmsService:
