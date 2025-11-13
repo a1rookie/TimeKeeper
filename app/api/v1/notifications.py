@@ -16,7 +16,7 @@ from app.repositories.family_notification_repository import FamilyNotificationRe
 
 logger = structlog.get_logger(__name__)
 
-router = APIRouter(prefix="/notifications", tags=["notifications"])
+router = APIRouter(prefix="/notifications", tags=["Notifications"])
 
 
 @router.get("/", response_model=ApiResponse[List[FamilyNotificationResponse]])

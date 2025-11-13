@@ -33,7 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = structlog.get_logger(__name__)
 
-router = APIRouter(prefix="/reminders", tags=["reminders"])
+router = APIRouter(prefix="/reminders", tags=["Reminders"])
 
 
 @router.post("/", response_model=ApiResponse[ReminderResponse], status_code=status.HTTP_201_CREATED)

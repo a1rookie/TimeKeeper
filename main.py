@@ -10,7 +10,8 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from app.core.config import settings
 from app.core.logging_config import setup_logging
-from app.api.v1 import users, reminders, push_tasks, family, completions, templates, debug
+from app.api.v1 import (users, reminders, push_tasks, family, completions, templates, 
+                        debug, notifications, monitoring, reminder_notifications)
 from app.services.push_scheduler import get_scheduler
 from app.core.redis import get_redis, close_redis
 from app.services.session_manager import init_session_manager
@@ -101,8 +102,6 @@ app.include_router(family.router, prefix="/api/v1/family", tags=["Family"])
 app.include_router(completions.router, prefix="/api/v1", tags=["Completions"])
 app.include_router(templates.router, prefix="/api/v1", tags=["Templates"])
 
-# 新增路由
-from app.api.v1 import notifications, monitoring, reminder_notifications
 app.include_router(notifications.router, prefix="/api/v1", tags=["Notifications"])
 app.include_router(monitoring.router, prefix="/api/v1", tags=["Monitoring"])
 app.include_router(reminder_notifications.router, prefix="/api/v1", tags=["Reminder Notifications"])
@@ -182,4 +181,10 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(
+        "main:app", 
+        host="0.0.0.0", 
+        port=8000, 
+        reload=True,
+        reload_excludes=["logs/*", "*.log",  "**/*.log", "__pycache__/*", "**/__pycache__/*", "*.pyc", "**/*.pyc"]
+    )

@@ -20,7 +20,7 @@ from app.models.template_share import TemplateShare
 
 logger = structlog.get_logger(__name__)
 
-router = APIRouter(prefix="/monitoring", tags=["monitoring"])
+router = APIRouter(prefix="/monitoring", tags=["Monitoring"])
 
 
 @router.get("/health", response_model=ApiResponse[Dict[str, Any]])

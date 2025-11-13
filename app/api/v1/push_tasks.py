@@ -21,7 +21,7 @@ from app.schemas.push_task import (
 from app.repositories.push_task_repository import PushTaskRepository
 from app.services.push_scheduler import create_push_task_for_reminder
 
-router = APIRouter(prefix="/push-tasks", tags=["push-tasks"])
+router = APIRouter(prefix="/push-tasks", tags=["Push"])
 
 
 @router.get("/", response_model=ApiResponse[PushTaskList])
