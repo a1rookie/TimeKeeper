@@ -7,7 +7,6 @@
 4. 每日发送次数限制
 """
 import sys
-import time
 from app.services.sms_service import generate_and_store_code, verify_code
 from app.core.redis import get_redis
 from app.core.database import SessionLocal
@@ -63,7 +62,7 @@ def test_rate_limit():
         # 立即第二次发送（应该被限频）
         try:
             code2, log_id2 = generate_and_store_code(phone, purpose, ip_address=ip, db=db)
-            print(f"❌ 第二次发送不应该成功!")
+            print("❌ 第二次发送不应该成功!")
         except RuntimeError as e:
             print(f"✅ 限频生效: {e}")
             
@@ -98,14 +97,14 @@ def test_verify_attempts():
         # 第6次应该被阻止
         try:
             ok = verify_code(phone, wrong_code, purpose, db=db)
-            print(f"❌ 第6次尝试不应该被允许!")
+            print("❌ 第6次尝试不应该被允许!")
         except RuntimeError as e:
             print(f"✅ 尝试次数限制生效: {e}")
             
         # 即使用正确的验证码也不行
         try:
             ok = verify_code(phone, code, purpose, db=db)
-            print(f"❌ 正确验证码也不应该通过!")
+            print("❌ 正确验证码也不应该通过!")
         except RuntimeError as e:
             print(f"✅ 正确验证码也被限制: {e}")
             
@@ -137,7 +136,7 @@ def test_daily_limit():
         
         # 如果接近限制，提示
         if count >= 8:
-            print(f"⚠️  警告: 接近每日限制!")
+            print("⚠️  警告: 接近每日限制!")
         
     except Exception as e:
         print(f"❌ 错误: {e}")

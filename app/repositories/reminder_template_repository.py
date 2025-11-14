@@ -3,10 +3,10 @@ Reminder Template Repository
 系统提醒模板数据访问层
 """
 from collections.abc import Sequence
-from typing import List, Optional
+from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from sqlalchemy import and_, or_, desc, func
+from sqlalchemy import and_, or_, desc
 from app.models.reminder_template import ReminderTemplate
 
 

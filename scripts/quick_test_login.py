@@ -2,7 +2,6 @@
 快速测试短信验证码登录 - 手动输入验证码
 """
 import requests
-import json
 
 BASE_URL = "http://localhost:8000/api/v1"
 PHONE = "18738710275"
@@ -26,7 +25,7 @@ def test_sms_login():
         
         if response.status_code == 200:
             data = response.json()
-            print(f"✅ 验证码已发送")
+            print("✅ 验证码已发送")
             print(f"   有效期: {data['data']['expires_in']} 秒")
         else:
             print(f"❌ 发送失败: {response.status_code}")
@@ -35,12 +34,12 @@ def test_sms_login():
             
     except Exception as e:
         print(f"❌ 请求失败: {e}")
-        print(f"   提示: 请确保 FastAPI 服务已启动")
-        print(f"   启动命令: uvicorn main:app --reload --port 8000")
+        print("   提示: 请确保 FastAPI 服务已启动")
+        print("   启动命令: uvicorn main:app --reload --port 8000")
         return
     
     # 2. 输入验证码
-    print(f"\n[步骤2] 请查收手机短信...")
+    print("\n[步骤2] 请查收手机短信...")
     sms_code = input("请输入收到的验证码: ").strip()
     
     if not sms_code:
@@ -48,7 +47,7 @@ def test_sms_login():
         return
     
     # 3. 使用验证码登录
-    print(f"\n[步骤3] 使用验证码登录...")
+    print("\n[步骤3] 使用验证码登录...")
     try:
         response = requests.post(
             f"{BASE_URL}/users/login",
@@ -61,10 +60,10 @@ def test_sms_login():
         
         if response.status_code == 200:
             data = response.json()
-            print(f"\n✅ 登录成功!")
+            print("\n✅ 登录成功!")
             print(f"   Token类型: {data['token_type']}")
             print(f"   访问令牌: {data['access_token'][:50]}...")
-            print(f"   用户信息:")
+            print("   用户信息:")
             print(f"   - ID: {data['user']['id']}")
             print(f"   - 手机号: {data['user']['phone']}")
             print(f"   - 昵称: {data['user']['nickname']}")

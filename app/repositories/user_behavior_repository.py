@@ -4,11 +4,11 @@ User Behavior Repository
 """
 from typing import List, Optional
 from collections.abc import Sequence
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from sqlalchemy import and_, desc
+from sqlalchemy import and_
 from app.models.user_behavior import UserBehavior
 
 

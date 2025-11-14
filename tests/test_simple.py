@@ -21,7 +21,7 @@ try:
     if response.status_code == 200:
         data = response.json()
         token = data["access_token"]
-        print(f"   ✅ 登录成功")
+        print("   ✅ 登录成功")
         print(f"   Token: {token[:30]}...")
         
         # 测试获取用户信息

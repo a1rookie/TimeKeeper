@@ -2,7 +2,6 @@
 测试短信验证码登录流程
 """
 import requests
-import time
 
 BASE_URL = "http://localhost:8000/api/v1"
 
@@ -29,9 +28,9 @@ def test_sms_login_flow():
         
         if response.status_code == 200:
             data = response.json()
-            print(f"✅ 验证码已发送")
+            print("✅ 验证码已发送")
             print(f"   手机号: {phone}")
-            print(f"   用途: 登录")
+            print("   用途: 登录")
             print(f"   有效期: {data.get('expires_in', 300)} 秒")
         else:
             error = response.json()
@@ -67,7 +66,7 @@ def test_sms_login_flow():
             token_data = response.json()
             access_token = token_data["access_token"]
             
-            print(f"✅ 登录成功!")
+            print("✅ 登录成功!")
             print(f"   Token: {access_token[:50]}...")
             
             # 步骤4：验证Token - 获取用户信息
@@ -79,7 +78,7 @@ def test_sms_login_flow():
             
             if response.status_code == 200:
                 user_data = response.json()
-                print(f"✅ Token验证成功!")
+                print("✅ Token验证成功!")
                 print(f"   用户ID: {user_data['id']}")
                 print(f"   用户名: {user_data.get('username', 'N/A')}")
                 print(f"   手机号: {user_data['phone']}")
@@ -125,7 +124,7 @@ def test_password_login():
         
         if response.status_code == 200:
             token_data = response.json()
-            print(f"✅ 密码登录成功!")
+            print("✅ 密码登录成功!")
             print(f"   Token: {token_data['access_token'][:50]}...")
         else:
             error = response.json()

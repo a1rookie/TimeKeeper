@@ -2,7 +2,7 @@
 SMS Log Repository
 短信日志数据访问层
 """
-from typing import Optional, List
+from typing import Optional
 from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select

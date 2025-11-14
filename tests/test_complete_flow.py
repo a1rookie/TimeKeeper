@@ -8,7 +8,6 @@ sys.path.insert(0, r"d:\pygithub\TimeKeeper\TimeKeeper")
 from fastapi.testclient import TestClient
 from main import app
 from datetime import datetime, timedelta
-import json
 
 def test_complete_business_flow():
     """测试完整业务流程"""
@@ -42,7 +41,7 @@ def test_complete_business_flow():
     print(f"Nickname: {user_data.get('nickname', 'N/A')}")
     print(f"Is Active: {user_data.get('is_active', 'N/A')}")
     print(f"Created At: {user_data.get('created_at', 'N/A')}")
-    print(f"Status: PASSED")
+    print("Status: PASSED")
     
     # ==================== Step 2: User Login ====================
     print("\n[Step 2] User Login")
@@ -66,7 +65,7 @@ def test_complete_business_flow():
     
     print(f"Token Type: {login_result['token_type']}")
     print(f"Token: {token[:20]}...")
-    print(f"Status: PASSED")
+    print("Status: PASSED")
     
     # ==================== Step 3: Create Reminder (Simple) ====================
     print("\n[Step 3] Create Simple Reminder")
@@ -95,7 +94,7 @@ def test_complete_business_flow():
     print(f"Title: {reminder1['title']}")
     print(f"Category: {reminder1['category']}")
     print(f"Priority: {reminder1.get('priority', 'N/A')}")
-    print(f"Status: PASSED")
+    print("Status: PASSED")
     
     # ==================== Step 4: Create Reminder (Complex with All Fields) ====================
     print("\n[Step 4] Create Complex Reminder with All New Fields")
@@ -152,7 +151,7 @@ def test_complete_business_flow():
     for i, att in enumerate(reminder2['attachments'], 1):
         print(f"  - Attachment {i}: {att['filename']} ({att['type']}, {att.get('size', 0)/1024:.1f}KB)")
     print(f"Is Completed: {reminder2.get('is_completed', 'N/A')}")
-    print(f"Status: PASSED")
+    print("Status: PASSED")
     
     # ==================== Step 5: List User Reminders ====================
     print("\n[Step 5] List User Reminders")
@@ -169,7 +168,7 @@ def test_complete_business_flow():
     print(f"Total Reminders: {len(reminders_list)}")
     for reminder in reminders_list:
         print(f"  - ID: {reminder['id']}, Title: {reminder['title']}, Priority: {reminder.get('priority', 1)}")
-    print(f"Status: PASSED")
+    print("Status: PASSED")
     
     # ==================== Step 6: Get Reminder Details ====================
     print("\n[Step 6] Get Reminder Details")
@@ -187,7 +186,7 @@ def test_complete_business_flow():
     print(f"Title: {reminder_detail['title']}")
     print(f"Description: {reminder_detail['description']}")
     print(f"All Fields Present: {all(key in reminder_detail for key in ['priority', 'amount', 'location', 'attachments'])}")
-    print(f"Status: PASSED")
+    print("Status: PASSED")
     
     # ==================== Step 7: Update Reminder ====================
     print("\n[Step 7] Update Reminder")
@@ -210,7 +209,7 @@ def test_complete_business_flow():
     print(f"Updated Title: {updated_reminder['title']}")
     print(f"Updated Priority: {updated_reminder['priority']} (changed from 3 to 2)")
     print(f"Updated Amount: {updated_reminder['amount']/100:.2f} yuan (changed from 3500 to 3800)")
-    print(f"Status: PASSED")
+    print("Status: PASSED")
     
     # ==================== Step 8: Verify Push Tasks Generated ====================
     print("\n[Step 8] Verify Push Tasks")
@@ -219,7 +218,7 @@ def test_complete_business_flow():
     # Note: This requires PushTask API to be implemented
     print("Note: PushTask listing API not yet implemented")
     print("Expected: 2 push tasks should be auto-generated for the 2 reminders")
-    print(f"Status: SKIPPED (API not available)")
+    print("Status: SKIPPED (API not available)")
     
     # ==================== Step 9: Delete Reminder ====================
     print("\n[Step 9] Delete Reminder")
@@ -237,7 +236,7 @@ def test_complete_business_flow():
     # Verify deletion
     verify_response = client.get(f"/api/v1/reminders/{reminder1['id']}", headers=headers)
     print(f"Verification Status: {verify_response.status_code} (should be 404)")
-    print(f"Status: PASSED" if verify_response.status_code == 404 else "FAILED")
+    print("Status: PASSED" if verify_response.status_code == 404 else "FAILED")
     
     # ==================== Final Summary ====================
     print("\n" + "="*80)

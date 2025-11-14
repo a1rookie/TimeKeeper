@@ -1,7 +1,6 @@
 """
 修复所有 return 语句，包装为 ApiResponse.success()
 """
-import re
 from pathlib import Path
 
 
@@ -89,7 +88,7 @@ def fix_file_manually(file_path: Path, replacements: list):
     for old, new in replacements:
         if old in content:
             content = content.replace(old, new)
-            print(f"    [OK] 替换成功")
+            print("    [OK] 替换成功")
         else:
             print(f"    [SKIP] 未找到: {old[:50]}...")
     

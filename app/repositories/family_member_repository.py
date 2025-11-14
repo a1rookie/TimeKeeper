@@ -3,7 +3,7 @@ Family Member Repository
 家庭成员数据访问层
 """
 from collections.abc import Sequence
-from typing import List, Optional
+from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy import and_

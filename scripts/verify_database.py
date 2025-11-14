@@ -24,7 +24,7 @@ def verify_database():
         with engine.connect() as conn:
             result = conn.execute(text("SELECT version()"))
             version = result.fetchone()[0]
-            print(f"✅ Connected to PostgreSQL")
+            print("✅ Connected to PostgreSQL")
             print(f"   Version: {version[:50]}...")
         
         # Check tables

@@ -23,7 +23,7 @@ def migrate_file(file_path: Path):
             content,
             count=1
         )
-        print(f"  ✓ 添加 ApiResponse 导入")
+        print("  ✓ 添加 ApiResponse 导入")
     
     # 统计修改次数
     changes = 0
@@ -69,7 +69,7 @@ def migrate_file(file_path: Path):
         print(f"  ✓ 完成 {changes} 处修改")
         return True
     else:
-        print(f"  ⊘ 无需修改")
+        print("  ⊘ 无需修改")
         return False
 
 def main():

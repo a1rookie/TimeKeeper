@@ -10,7 +10,7 @@ from app.core.database import engine
 from app.models.user import User
 from app.models.reminder import Reminder, RecurrenceType, ReminderCategory
 from app.core.security import get_password_hash
-from datetime import datetime, timedelta
+from datetime import datetime
 
 def init_test_data():
     """Initialize test data in PostgreSQL"""

@@ -4,7 +4,6 @@ Recurrence Calculation Module
 """
 
 from datetime import datetime, timedelta
-from app.models.reminder import RecurrenceType
 
 
 def calculate_next_occurrence(

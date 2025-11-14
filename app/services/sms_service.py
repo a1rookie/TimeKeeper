@@ -9,7 +9,6 @@ SmsService 抽象与 Aliyun 实现
 """
 from __future__ import annotations
 from typing import Optional, Tuple
-import json
 import random
 import structlog
 from datetime import datetime, timedelta

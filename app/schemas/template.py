@@ -2,7 +2,7 @@
 Template Schemas
 模板相关的 Pydantic 模型
 """
-from typing import Optional, List
+from typing import Optional
 from datetime import datetime
 from pydantic import BaseModel, Field
 from app.models.template_share import ShareType

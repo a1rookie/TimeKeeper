@@ -13,7 +13,6 @@ from sqlalchemy import create_engine, text
 from app.core.database import Base
 from app.models.user import User
 from app.models.reminder import Reminder
-from app.models.push_task import PushTask
 
 def setup_sqlite_dev_db():
     """Setup SQLite database for local development"""
@@ -37,7 +36,7 @@ def setup_sqlite_dev_db():
         
         # Create engine
         database_url = f"sqlite:///./{db_path}"
-        print(f"\n📡 Creating SQLite database...")
+        print("\n📡 Creating SQLite database...")
         print(f"   Path: {db_path.absolute()}")
         
         engine = create_engine(database_url, echo=False)

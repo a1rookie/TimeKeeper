@@ -2,7 +2,6 @@
 Family Notification API
 家庭通知的 API 路由
 """
-import re
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,7 +9,6 @@ import structlog
 
 from app.core.database import get_db
 from app.core.security import get_current_user
-from app.models import user
 from app.models.user import User
 from app.schemas.response import ApiResponse
 from app.schemas.notification import FamilyNotificationResponse, NotificationStats

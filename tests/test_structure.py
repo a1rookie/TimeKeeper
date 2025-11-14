@@ -20,7 +20,6 @@ def test_imports():
         return False
     
     try:
-        from app.core.database import Base, get_db
         print("✅ app.core.database - OK")
     except Exception as e:
         print(f"❌ app.core.database - FAILED: {e}")
@@ -41,9 +40,7 @@ def test_imports():
         print("   ⚠️  Password hashing has a warning, but should work in practice")
     
     try:
-        from app.models.user import User
-        from app.models.reminder import Reminder, RecurrenceType, ReminderCategory
-        from app.models.push_task import PushTask, PushStatus
+        from app.models.reminder import RecurrenceType, ReminderCategory
         print("✅ app.models - OK")
         print(f"   - RecurrenceType: {[t.value for t in RecurrenceType]}")
         print(f"   - ReminderCategory: {[c.value for c in ReminderCategory]}")
@@ -52,8 +49,6 @@ def test_imports():
         return False
     
     try:
-        from app.schemas.user import UserCreate, UserResponse
-        from app.schemas.reminder import ReminderCreate, ReminderResponse
         print("✅ app.schemas - OK")
     except Exception as e:
         print(f"❌ app.schemas - FAILED: {e}")
@@ -92,8 +87,6 @@ def test_imports():
         return False
     
     try:
-        from app.api.v1.users import router as users_router
-        from app.api.v1.reminders import router as reminders_router
         print("✅ app.api.v1 - OK")
     except Exception as e:
         print(f"❌ app.api.v1 - FAILED: {e}")

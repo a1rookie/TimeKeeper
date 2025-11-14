@@ -2,7 +2,7 @@
 Family Group Model
 家庭组模型
 """
-from typing import Optional, List, TYPE_CHECKING
+from typing import List, TYPE_CHECKING
 from datetime import datetime
 from sqlalchemy import String, ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship

@@ -4,7 +4,7 @@ Voice Input Model
 """
 from typing import Optional, Dict, Any, TYPE_CHECKING
 from datetime import datetime
-from sqlalchemy import String, Text, Boolean, ForeignKey, func
+from sqlalchemy import String, Text, ForeignKey, func
 from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base

@@ -4,7 +4,7 @@ Family Notification Model
 """
 from typing import Optional, TYPE_CHECKING
 from datetime import datetime
-from sqlalchemy import String, Text, Boolean, ForeignKey, Enum as SQLEnum, func
+from sqlalchemy import String, Text, ForeignKey, Enum as SQLEnum, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 import enum
 from app.core.database import Base
@@ -12,8 +12,6 @@ from app.core.database import Base
 if TYPE_CHECKING:
     from app.models.family_group import FamilyGroup
     from app.models.user import User
-    from app.models.reminder import Reminder
-    from app.models.reminder_completion import ReminderCompletion
 
 
 class NotificationType(str, enum.Enum):

@@ -14,7 +14,6 @@ from app.schemas.reminder import (
     ReminderCreate, 
     ReminderUpdate, 
     ReminderResponse,
-    VoiceReminderCreate,
     QuickReminderCreate
 )
 from app.schemas.reminder_completion import (

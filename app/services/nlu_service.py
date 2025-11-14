@@ -4,7 +4,7 @@ NLU (Natural Language Understanding) Service
 """
 import json
 from typing import Dict, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime
 import httpx
 import structlog
 

@@ -23,8 +23,7 @@ from app.schemas.template import (
     TemplateShareResponse,
     TemplateShareDetail,
     TemplateUsageCreate,
-    TemplateUsageResponse,
-    TemplateLikeResponse
+    TemplateUsageResponse
 )
 from app.repositories.reminder_template_repository import ReminderTemplateRepository
 from app.repositories.user_custom_template_repository import UserCustomTemplateRepository

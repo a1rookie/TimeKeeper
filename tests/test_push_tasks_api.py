@@ -96,7 +96,7 @@ async def test_push_task_flow():
             response.raise_for_status()
             task = response.json()
             task_id = task["id"]
-            print(f"   ✓ 推送任务创建成功")
+            print("   ✓ 推送任务创建成功")
             print(f"     - 任务ID: {task_id}")
             print(f"     - 状态: {task['status']}")
             print(f"     - 计划时间: {task['scheduled_time']}")
@@ -113,7 +113,7 @@ async def test_push_task_flow():
             )
             response.raise_for_status()
             task = response.json()
-            print(f"   ✓ 查询成功")
+            print("   ✓ 查询成功")
             print(f"     - 标题: {task['title']}")
             print(f"     - 内容: {task['content']}")
             print(f"     - 推送渠道: {task['channels']}")
@@ -144,7 +144,7 @@ async def test_push_task_flow():
             )
             response.raise_for_status()
             stats = response.json()
-            print(f"   ✓ 统计信息:")
+            print("   ✓ 统计信息:")
             print(f"     - 总任务数: {stats['total']}")
             print(f"     - 待发送: {stats['pending']}")
             print(f"     - 已发送: {stats['sent']}")
@@ -179,7 +179,7 @@ async def test_push_task_flow():
                 headers=headers
             )
             response.raise_for_status()
-            print(f"   ✓ 取消成功")
+            print("   ✓ 取消成功")
         except Exception as e:
             print(f"   ✗ 取消失败: {e}")
         

@@ -3,7 +3,6 @@ Session Management Test Script
 测试会话管理功能：设备互踢、多设备并存
 """
 import requests
-import json
 
 BASE_URL = "http://localhost:8000/api/v1"
 
