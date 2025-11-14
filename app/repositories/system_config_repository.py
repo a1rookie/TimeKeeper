@@ -14,7 +14,7 @@ class SystemConfigRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
     
-    async def get(self, config_key: str) -> Optional[Any]:
+    async def get(self, config_key: str) -> Any | None:
         """获取配置值"""
         stmt = select(SystemConfig).where(
             SystemConfig.config_key == config_key

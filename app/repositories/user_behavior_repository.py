@@ -3,6 +3,7 @@ User Behavior Repository
 用户行为数据访问层
 """
 from typing import List, Optional
+from collections.abc import Sequence
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -67,7 +68,7 @@ class UserBehaviorRepository:
         await self.db.refresh(behavior)
         return behavior
     
-    async def get_by_date(self, user_id: int, behavior_date: date) -> Optional[UserBehavior]:
+    async def get_by_date(self, user_id: int, behavior_date: date) -> UserBehavior | None:
         """查询指定日期的行为数据"""
         stmt = select(UserBehavior).where(
             and_(
@@ -83,7 +84,7 @@ class UserBehaviorRepository:
         user_id: int,
         start_date: date,
         end_date: date
-    ) -> List[UserBehavior]:
+    ) -> Sequence[UserBehavior]:
         """查询日期范围内的行为数据"""
         stmt = select(UserBehavior).where(
             and_(
@@ -93,9 +94,9 @@ class UserBehaviorRepository:
             )
         ).order_by(UserBehavior.behavior_date)
         result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+        return result.scalars().all()
     
-    async def get_recent(self, user_id: int, days: int = 30) -> List[UserBehavior]:
+    async def get_recent(self, user_id: int, days: int = 30) -> Sequence[UserBehavior]:
         """查询最近N天的行为数据"""
         end_date = date.today()
         start_date = end_date - timedelta(days=days)

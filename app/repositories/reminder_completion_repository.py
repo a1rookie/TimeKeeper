@@ -4,6 +4,7 @@ Reminder Completion Repository
 """
 
 from typing import List, Optional
+from collections.abc import Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from datetime import datetime
@@ -55,7 +56,7 @@ class ReminderCompletionRepository:
         reminder_id: int,
         skip: int = 0,
         limit: int = 100
-    ) -> List[ReminderCompletion]:
+    ) -> Sequence[ReminderCompletion]:
         """获取某个提醒的所有完成记录"""
         stmt = select(ReminderCompletion).where(
             ReminderCompletion.reminder_id == reminder_id
@@ -63,9 +64,9 @@ class ReminderCompletionRepository:
             ReminderCompletion.completed_time.desc()
         ).offset(skip).limit(limit)
         result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+        return result.scalars().all()
     
-    async def get_latest_by_reminder(self, reminder_id: int) -> Optional[ReminderCompletion]:
+    async def get_latest_by_reminder(self, reminder_id: int) -> ReminderCompletion | None:
         """获取某个提醒的最新完成记录"""
         stmt = select(ReminderCompletion).where(
             ReminderCompletion.reminder_id == reminder_id
@@ -118,7 +119,7 @@ class ReminderCompletionRepository:
         reminder_id: int,
         scheduled_time: datetime,
         time_window_hours: int = 1
-    ) -> Optional[ReminderCompletion]:
+    ) -> ReminderCompletion | None:
         """检查最近是否有完成记录（防重复）"""
         from datetime import timedelta
         time_window = timedelta(hours=time_window_hours)
@@ -135,7 +136,7 @@ class ReminderCompletionRepository:
         user_id: int,
         since: datetime,
         limit: int = 1000
-    ) -> List[ReminderCompletion]:
+    ) -> Sequence[ReminderCompletion]:
         """获取用户指定时间后的完成记录"""
         stmt = select(ReminderCompletion).where(
             ReminderCompletion.user_id == user_id,
@@ -144,4 +145,4 @@ class ReminderCompletionRepository:
             ReminderCompletion.completed_time.desc()
         ).limit(limit)
         result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+        return result.scalars().all()

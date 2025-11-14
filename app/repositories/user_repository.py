@@ -15,14 +15,14 @@ class UserRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
     
-    async def get_by_id(self, user_id: int) -> Optional[User]:
+    async def get_by_id(self, user_id: int) -> User | None:
         """根据ID获取用户"""
         result = await self.db.execute(
             select(User).filter(User.id == user_id)
         )
         return result.scalar_one_or_none()
     
-    async def get_by_phone(self, phone: str) -> Optional[User]:
+    async def get_by_phone(self, phone: str) -> User | None:
         """根据手机号获取用户"""
         result = await self.db.execute(
             select(User).filter(User.phone == phone)

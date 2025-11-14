@@ -4,6 +4,7 @@ PushTask Repository
 """
 
 from typing import List, Optional, Tuple
+from collections.abc import Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, update
 from datetime import datetime
@@ -19,7 +20,7 @@ class PushTaskRepository:
     # -----------------
     # 实例方法（用于通过实例操作）
     # -----------------
-    async def get_by_id(self, task_id: int, user_id: Optional[int] = None) -> Optional[PushTask]:
+    async def get_by_id(self, task_id: int, user_id: Optional[int] = None) -> PushTask | None:
         stmt = select(PushTask).where(PushTask.id == task_id)
         if user_id is not None:
             stmt = stmt.where(PushTask.user_id == user_id)
@@ -85,7 +86,7 @@ class PushTaskRepository:
         await self.db.refresh(task)
         return task
 
-    async def get_pending_tasks(self, before_time: datetime) -> List[PushTask]:
+    async def get_pending_tasks(self, before_time: datetime) -> Sequence[PushTask]:
         stmt = select(PushTask).where(
             and_(
                 PushTask.status == PushStatus.PENDING,
@@ -93,9 +94,9 @@ class PushTaskRepository:
             )
         ).order_by(PushTask.priority.desc(), PushTask.scheduled_time)
         result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+        return result.scalars().all()
 
-    async def get_failed_tasks_for_retry(self, max_retries: int = 3) -> List[PushTask]:
+    async def get_failed_tasks_for_retry(self, max_retries: int = 3) -> Sequence[PushTask]:
         stmt = select(PushTask).where(
             and_(
                 PushTask.status == PushStatus.FAILED,
@@ -103,7 +104,7 @@ class PushTaskRepository:
             )
         )
         result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+        return result.scalars().all()
 
     async def cancel(self, task: PushTask) -> None:
         task.status = PushStatus.CANCELLED
@@ -132,7 +133,7 @@ class PushTaskRepository:
     # 类方法（兼容现有代码风格：通过类直接调用并传入 db 参数）
     # -----------------
     @staticmethod
-    async def get_by_id_static(db: AsyncSession, task_id: int, user_id: Optional[int] = None) -> Optional[PushTask]:
+    async def get_by_id_static(db: AsyncSession, task_id: int, user_id: Optional[int] = None) -> PushTask | None:
         repo = PushTaskRepository(db)
         return await repo.get_by_id(task_id=task_id, user_id=user_id)
 
@@ -181,7 +182,7 @@ class PushTaskRepository:
         return await repo.update_status(task=task, status=status, error_message=error_message, push_response=push_response)
 
     @staticmethod
-    async def get_pending_tasks_static(db: AsyncSession, before_time: datetime) -> List[PushTask]:
+    async def get_pending_tasks_static(db: AsyncSession, before_time: datetime) -> Sequence[PushTask]:
         repo = PushTaskRepository(db)
         return await repo.get_pending_tasks(before_time=before_time)
 

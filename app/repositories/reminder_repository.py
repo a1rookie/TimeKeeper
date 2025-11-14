@@ -4,6 +4,7 @@ Reminder Repository
 """
 
 from typing import List, Optional
+from collections.abc import Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, select
 from datetime import datetime
@@ -16,7 +17,7 @@ class ReminderRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
     
-    async def get_by_id(self, reminder_id: int, user_id: int) -> Optional[Reminder]:
+    async def get_by_id(self, reminder_id: int, user_id: int) -> Reminder | None:
         """根据ID获取提醒（验证所有权）"""
         result = await self.db.execute(
             select(Reminder).filter(
@@ -28,7 +29,7 @@ class ReminderRepository:
         )
         return result.scalar_one_or_none()
     
-    async def get_by_id_without_user_check(self, reminder_id: int) -> Optional[Reminder]:
+    async def get_by_id_without_user_check(self, reminder_id: int) -> Reminder | None:
         """根据ID获取提醒（不验证所有权，用于家庭共享提醒）"""
         result = await self.db.execute(
             select(Reminder).where(Reminder.id == reminder_id)
@@ -42,7 +43,7 @@ class ReminderRepository:
         limit: int = 100,
         is_active: Optional[bool] = None,
         category: Optional[ReminderCategory] = None
-    ) -> List[Reminder]:
+    ) -> Sequence[Reminder]:
         """获取用户的提醒列表"""
         query = select(Reminder).filter(Reminder.user_id == user_id)
         
@@ -54,7 +55,7 @@ class ReminderRepository:
         
         query = query.order_by(Reminder.next_remind_time).offset(skip).limit(limit)
         result = await self.db.execute(query)
-        return list(result.scalars().all())
+        return result.scalars().all()
     
     async def create(
         self,
@@ -134,7 +135,7 @@ class ReminderRepository:
         await self.db.refresh(reminder)
         return reminder
     
-    async def get_pending_reminders(self, before_time: datetime) -> List[Reminder]:
+    async def get_pending_reminders(self, before_time: datetime) -> Sequence[Reminder]:
         """获取待推送的提醒（下次提醒时间在指定时间之前且未完成）"""
         result = await self.db.execute(
             select(Reminder).filter(
@@ -145,7 +146,7 @@ class ReminderRepository:
                 )
             )
         )
-        return list(result.scalars().all())
+        return result.scalars().all()
     
     async def count_user_reminders(self, user_id: int, is_active: Optional[bool] = None) -> int | None:
         """统计用户提醒数量"""

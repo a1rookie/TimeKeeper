@@ -3,6 +3,7 @@ Template Usage Record Repository
 模板使用记录数据访问层
 """
 from typing import List, Optional
+from collections.abc import Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy import and_, desc
@@ -34,30 +35,30 @@ class TemplateUsageRecordRepository:
         await self.db.refresh(record)
         return record
     
-    async def get_by_id(self, record_id: int) -> Optional[TemplateUsageRecord]:
+    async def get_by_id(self, record_id: int) -> TemplateUsageRecord | None:
         """根据ID查询记录"""
         result = await self.db.execute(select(TemplateUsageRecord).filter(
             TemplateUsageRecord.id == record_id
         ))
         return result.scalar_one_or_none()
     
-    async def get_by_share(self, template_share_id: int) -> List[TemplateUsageRecord]:
+    async def get_by_share(self, template_share_id: int) -> Sequence[TemplateUsageRecord]:
         """查询模板分享的所有使用记录"""
         stmt = select(TemplateUsageRecord).where(
             TemplateUsageRecord.template_share_id == template_share_id
         ).order_by(desc(TemplateUsageRecord.used_at))
         result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+        return result.scalars().all()
     
-    async def get_by_user(self, user_id: int) -> List[TemplateUsageRecord]:
+    async def get_by_user(self, user_id: int) -> Sequence[TemplateUsageRecord]:
         """查询用户的使用记录"""
         stmt = select(TemplateUsageRecord).where(
             TemplateUsageRecord.user_id == user_id
         ).order_by(desc(TemplateUsageRecord.used_at))
         result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+        return result.scalars().all()
     
-    async def check_existing(self, template_share_id: int, user_id: int) -> Optional[TemplateUsageRecord]:
+    async def check_existing(self, template_share_id: int, user_id: int) -> TemplateUsageRecord | None:
         """检查用户是否已使用过该模板"""
         stmt = select(TemplateUsageRecord).where(
             and_(
@@ -73,7 +74,7 @@ class TemplateUsageRecordRepository:
         record_id: int,
         feedback_rating: Optional[int] = None,
         feedback_comment: Optional[str] = None
-    ) -> Optional[TemplateUsageRecord]:
+    ) -> TemplateUsageRecord | None:
         """更新反馈"""
         record = await self.get_by_id(record_id)
         if not record:
