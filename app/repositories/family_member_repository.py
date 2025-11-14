@@ -2,6 +2,7 @@
 Family Member Repository
 家庭成员数据访问层
 """
+from collections.abc import Sequence
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -35,12 +36,12 @@ class FamilyMemberRepository:
         await self.db.refresh(member)
         return member
     
-    async def get_by_id(self, member_id: int) -> Optional[FamilyMember]:
+    async def get_by_id(self, member_id: int) -> FamilyMember | None:
         """根据ID查询成员"""
         result = await self.db.execute(select(FamilyMember).filter(FamilyMember.id == member_id))
         return result.scalar_one_or_none()
     
-    async def get_member(self, group_id: int, user_id: int) -> Optional[FamilyMember]:
+    async def get_member(self, group_id: int, user_id: int) -> FamilyMember | None:
         """查询指定用户在家庭组中的成员信息"""
         stmt = select(FamilyMember).where(
             and_(
@@ -52,7 +53,7 @@ class FamilyMemberRepository:
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
     
-    async def get_group_members(self, group_id: int) -> List[FamilyMember]:
+    async def get_group_members(self, group_id: int) -> Sequence[FamilyMember]:
         """查询家庭组所有成员"""
         stmt = select(FamilyMember).where(
             and_(
@@ -61,7 +62,7 @@ class FamilyMemberRepository:
             )
         )
         result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+        return result.scalars().all()
     
     async def is_member(self, group_id: int, user_id: int) -> bool:
         """检查用户是否为家庭组成员"""
@@ -73,7 +74,7 @@ class FamilyMemberRepository:
         member = await self.get_member(group_id, user_id)
         return member is not None and member.role == MemberRole.ADMIN
     
-    async def update_role(self, member_id: int, role: MemberRole) -> Optional[FamilyMember]:
+    async def update_role(self, member_id: int, role: MemberRole) -> FamilyMember | None:
         """更新成员角色"""
         member = await self.get_by_id(member_id)
         if not member:
@@ -84,7 +85,7 @@ class FamilyMemberRepository:
         await self.db.refresh(member)
         return member
     
-    async def update_nickname(self, member_id: int, nickname: str) -> Optional[FamilyMember]:
+    async def update_nickname(self, member_id: int, nickname: str) -> FamilyMember | None:
         """更新成员昵称"""
         member = await self.get_by_id(member_id)
         if not member:
@@ -105,7 +106,7 @@ class FamilyMemberRepository:
         await self.db.commit()
         return True
     
-    async def get_user_families(self, user_id: int) -> List[FamilyMember]:
+    async def get_user_families(self, user_id: int) -> Sequence[FamilyMember]:
         """获取用户所在的所有家庭组成员记录"""
         stmt = select(FamilyMember).where(
             and_(
@@ -114,7 +115,7 @@ class FamilyMemberRepository:
             )
         )
         result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+        return result.scalars().all()
     
     async def get_user_groups_count(self, user_id: int) -> int:
         """获取用户加入的家庭组数量"""

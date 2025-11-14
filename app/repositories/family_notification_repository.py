@@ -2,6 +2,8 @@
 Family Notification Repository
 家庭通知数据访问层
 """
+import asyncio
+from collections.abc import Sequence
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, desc, func
@@ -46,7 +48,7 @@ class FamilyNotificationRepository:
         await self.db.refresh(notification)
         return notification
     
-    async def get_by_id(self, notification_id: int) -> Optional[FamilyNotification]:
+    async def get_by_id(self, notification_id: int) -> FamilyNotification | None:
         """根据ID查询通知"""
         result = await self.db.execute(
             select(FamilyNotification).filter(FamilyNotification.id == notification_id)
@@ -59,7 +61,7 @@ class FamilyNotificationRepository:
         unread_only: bool = False,
         limit: int = 50,
         offset: int = 0
-    ) -> List[FamilyNotification]:
+    ) -> Sequence[FamilyNotification]:
         """获取用户的通知列表"""
         query = select(FamilyNotification).filter(FamilyNotification.receiver_id == user_id)
         
@@ -69,7 +71,7 @@ class FamilyNotificationRepository:
         query = query.order_by(desc(FamilyNotification.created_at)).limit(limit).offset(offset)
         
         result = await self.db.execute(query)
-        return list(result.scalars().all())
+        return result.scalars().all()
     
     async def get_unread_count(self, user_id: int) -> int:
         """获取用户未读通知数量"""
@@ -136,7 +138,7 @@ class FamilyNotificationRepository:
         related_reminder_id: Optional[int] = None,
         related_completion_id: Optional[int] = None,
         metadata_json: Optional[str] = None
-    ) -> List[FamilyNotification]:
+    ) -> Sequence[FamilyNotification]:
         """批量为家庭成员创建通知"""
         notifications = []
         for receiver_id in receiver_ids:
@@ -157,9 +159,7 @@ class FamilyNotificationRepository:
                 notifications.append(notification)
         
         await self.db.commit()
-        
-        # 刷新所有通知以获取ID
-        for notification in notifications:
-            await self.db.refresh(notification)
+
+        await asyncio.gather(*(self.db.refresh(n) for n in notifications))
         
         return notifications
