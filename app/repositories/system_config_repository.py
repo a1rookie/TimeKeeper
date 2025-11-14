@@ -16,17 +16,21 @@ class SystemConfigRepository:
     
     async def get(self, config_key: str) -> Optional[Any]:
         """获取配置值"""
-        config = self.db.query(SystemConfig).filter(
+        stmt = select(SystemConfig).where(
             SystemConfig.config_key == config_key
-        ).first()
+        )
+        result = await self.db.execute(stmt)
+        config = result.scalar_one_or_none()
         
         return config.config_value if config else None
     
     async def set(self, config_key: str, config_value: Any, description: Optional[str] = None) -> SystemConfig:
         """设置配置值"""
-        config = self.db.query(SystemConfig).filter(
+        stmt = select(SystemConfig).where(
             SystemConfig.config_key == config_key
-        ).first()
+        )
+        result = await self.db.execute(stmt)
+        config = result.scalar_one_or_none()
         
         if config:
             config.config_value = config_value
@@ -46,9 +50,11 @@ class SystemConfigRepository:
     
     async def delete(self, config_key: str) -> bool:
         """删除配置"""
-        config = self.db.query(SystemConfig).filter(
+        stmt = select(SystemConfig).where(
             SystemConfig.config_key == config_key
-        ).first()
+        )
+        result = await self.db.execute(stmt)
+        config = result.scalar_one_or_none()
         
         if not config:
             return False
@@ -59,5 +65,7 @@ class SystemConfigRepository:
     
     async def get_all(self) -> dict:
         """获取所有配置"""
-        configs = self.db.query(SystemConfig).all()
+        stmt = select(SystemConfig)
+        result = await self.db.execute(stmt)
+        configs = result.scalars().all()
         return {config.config_key: config.config_value for config in configs}

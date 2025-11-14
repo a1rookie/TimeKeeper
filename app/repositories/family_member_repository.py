@@ -42,35 +42,40 @@ class FamilyMemberRepository:
     
     async def get_member(self, group_id: int, user_id: int) -> Optional[FamilyMember]:
         """查询指定用户在家庭组中的成员信息"""
-        return self.db.query(FamilyMember).filter(
+        stmt = select(FamilyMember).where(
             and_(
                 FamilyMember.group_id == group_id,
                 FamilyMember.user_id == user_id,
                 FamilyMember.is_active == True
             )
-        ).first()
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
     
     async def get_group_members(self, group_id: int) -> List[FamilyMember]:
         """查询家庭组所有成员"""
-        return self.db.query(FamilyMember).filter(
+        stmt = select(FamilyMember).where(
             and_(
                 FamilyMember.group_id == group_id,
                 FamilyMember.is_active == True
             )
-        ).all()
+        )
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
     
     async def is_member(self, group_id: int, user_id: int) -> bool:
         """检查用户是否为家庭组成员"""
-        return self.get_member(group_id, user_id) is not None
+        member = await self.get_member(group_id, user_id)
+        return member is not None
     
     async def is_admin(self, group_id: int, user_id: int) -> bool:
         """检查用户是否为管理员"""
-        member = self.get_member(group_id, user_id)
+        member = await self.get_member(group_id, user_id)
         return member is not None and member.role == MemberRole.ADMIN
     
     async def update_role(self, member_id: int, role: MemberRole) -> Optional[FamilyMember]:
         """更新成员角色"""
-        member = self.get_by_id(member_id)
+        member = await self.get_by_id(member_id)
         if not member:
             return None
         
@@ -81,7 +86,7 @@ class FamilyMemberRepository:
     
     async def update_nickname(self, member_id: int, nickname: str) -> Optional[FamilyMember]:
         """更新成员昵称"""
-        member = self.get_by_id(member_id)
+        member = await self.get_by_id(member_id)
         if not member:
             return None
         
@@ -92,7 +97,7 @@ class FamilyMemberRepository:
     
     async def remove_member(self, group_id: int, user_id: int) -> bool:
         """移除成员"""
-        member = self.get_member(group_id, user_id)
+        member = await self.get_member(group_id, user_id)
         if not member:
             return False
         
@@ -100,11 +105,25 @@ class FamilyMemberRepository:
         await self.db.commit()
         return True
     
-    async def get_user_groups_count(self, user_id: int) -> int:
-        """获取用户加入的家庭组数量"""
-        return self.db.query(FamilyMember).filter(
+    async def get_user_families(self, user_id: int) -> List[FamilyMember]:
+        """获取用户所在的所有家庭组成员记录"""
+        stmt = select(FamilyMember).where(
             and_(
                 FamilyMember.user_id == user_id,
                 FamilyMember.is_active == True
             )
-        ).count()
+        )
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+    
+    async def get_user_groups_count(self, user_id: int) -> int:
+        """获取用户加入的家庭组数量"""
+        from sqlalchemy import func
+        stmt = select(func.count()).select_from(FamilyMember).where(
+            and_(
+                FamilyMember.user_id == user_id,
+                FamilyMember.is_active == True
+            )
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar() or 0

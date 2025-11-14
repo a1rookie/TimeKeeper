@@ -29,6 +29,35 @@ from app.repositories.family_member_repository import FamilyMemberRepository
 router = APIRouter()
 
 
+def _to_group_response(g, member_count: int) -> FamilyGroupResponse:
+    """将 FamilyGroup 模型转换为响应对象"""
+    return FamilyGroupResponse(
+        id=int(g.id),  
+        name=str(g.name),  
+        description=str(g.description) if g.description else None,  
+        creator_id=int(g.creator_id),  
+        is_active=bool(g.is_active),  
+        member_count=member_count,
+        created_at=g.created_at,  
+        updated_at=g.updated_at  
+    )
+
+
+def _to_member_response(m) -> FamilyMemberResponse:
+    """将 FamilyMember 模型转换为响应对象"""
+    return FamilyMemberResponse(
+        id=int(m.id),  
+        group_id=int(m.group_id),  
+        user_id=int(m.user_id),  
+        role=m.role,  
+        nickname=str(m.nickname) if m.nickname else None,  
+        is_active=bool(m.is_active),  
+        joined_at=m.joined_at,  
+        user_phone=str(m.user.phone) if m.user else None,  
+        user_nickname=str(m.user.nickname) if m.user else None  
+    )
+
+
 # ==================== 家庭组管理 ====================
 
 @router.post("/groups", response_model=ApiResponse[FamilyGroupDetail], status_code=status.HTTP_201_CREATED)
@@ -54,17 +83,21 @@ async def create_family_group(
     group_repo = FamilyGroupRepository(db)
     member_repo = FamilyMemberRepository(db)
     
+    user_id = int(current_user.id)  
+    
     # 创建家庭组
     group = await group_repo.create(
         name=data.name,
-        creator_id=current_user.id,
+        creator_id=user_id,
         description=data.description
     )
     
+    group_id = int(group.id)  
+    
     # 自动添加创建者为管理员
     await member_repo.add_member(
-        group_id=group.id,
-        user_id=current_user.id,
+        group_id=group_id,
+        user_id=user_id,
         role=MemberRole.ADMIN
     )
     
@@ -77,30 +110,18 @@ async def create_family_group(
     )
     
     # 获取完整信息
-    members = await member_repo.get_group_members(group.id)
+    members = await member_repo.get_group_members(group_id)
     
     group_detail = FamilyGroupDetail(
-        id=group.id,
-        name=group.name,
-        description=group.description,
-        creator_id=group.creator_id,
-        is_active=group.is_active,
+        id=group_id,
+        name=str(group.name),  
+        description=str(group.description) if group.description else None,  
+        creator_id=user_id,
+        is_active=bool(group.is_active),  
         member_count=len(members),
-        created_at=group.created_at,
-        updated_at=group.updated_at,
-        members=[
-            FamilyMemberResponse(
-                id=m.id,
-                group_id=m.group_id,
-                user_id=m.user_id,
-                role=m.role,
-                nickname=m.nickname,
-                is_active=m.is_active,
-                joined_at=m.joined_at,
-                user_phone=m.user.phone if m.user else None,
-                user_nickname=m.user.nickname if m.user else None
-            ) for m in members
-        ]
+        created_at=group.created_at,  
+        updated_at=group.updated_at,  
+        members=[_to_member_response(m) for m in members]
     )
     
     return ApiResponse.success(data=group_detail, message="创建成功")
@@ -120,21 +141,14 @@ async def list_my_groups(
     group_repo = FamilyGroupRepository(db)
     member_repo = FamilyMemberRepository(db)
     
-    groups = await group_repo.get_user_groups(current_user.id)
+    user_id = int(current_user.id)  
+    groups = await group_repo.get_user_groups(user_id)
     
     group_list = []
     for g in groups:
-        members = await member_repo.get_group_members(g.id)
-        group_list.append(FamilyGroupResponse(
-            id=g.id,
-            name=g.name,
-            description=g.description,
-            creator_id=g.creator_id,
-            is_active=g.is_active,
-            member_count=len(members),
-            created_at=g.created_at,
-            updated_at=g.updated_at
-        ))
+        gid = int(g.id)  
+        members = await member_repo.get_group_members(gid)
+        group_list.append(_to_group_response(g, len(members)))
     
     return ApiResponse.success(data=group_list)
 
@@ -163,7 +177,8 @@ async def get_group_detail(
         )
     
     # 检查权限（必须是成员）
-    if not await member_repo.is_member(group_id, current_user.id):
+    user_id = int(current_user.id)  
+    if not await member_repo.is_member(group_id, user_id):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="无权访问该家庭组"
@@ -172,27 +187,15 @@ async def get_group_detail(
     members = await member_repo.get_group_members(group_id)
     
     group_detail = FamilyGroupDetail(
-        id=group.id,
-        name=group.name,
-        description=group.description,
-        creator_id=group.creator_id,
-        is_active=group.is_active,
+        id=int(group.id),  
+        name=str(group.name),  
+        description=str(group.description) if group.description else None,  
+        creator_id=int(group.creator_id),  
+        is_active=bool(group.is_active),  
         member_count=len(members),
-        created_at=group.created_at,
-        updated_at=group.updated_at,
-        members=[
-            FamilyMemberResponse(
-                id=m.id,
-                group_id=m.group_id,
-                user_id=m.user_id,
-                role=m.role,
-                nickname=m.nickname,
-                is_active=m.is_active,
-                joined_at=m.joined_at,
-                user_phone=m.user.phone if m.user else None,
-                user_nickname=m.user.nickname if m.user else None
-            ) for m in members
-        ]
+        created_at=group.created_at,  
+        updated_at=group.updated_at,  
+        members=[_to_member_response(m) for m in members]
     )
     
     return ApiResponse.success(data=group_detail)
@@ -214,8 +217,10 @@ async def update_group(
     group_repo = FamilyGroupRepository(db)
     member_repo = FamilyMemberRepository(db)
     
+    user_id = int(current_user.id)  
+    
     # 检查权限
-    if not await member_repo.is_admin(group_id, current_user.id):
+    if not await member_repo.is_admin(group_id, user_id):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="仅管理员可以修改家庭组信息"
@@ -234,16 +239,7 @@ async def update_group(
     members = await member_repo.get_group_members(group_id)
     member_count = len(members)
     
-    group_response = FamilyGroupResponse(
-        id=group.id,
-        name=group.name,
-        description=group.description,
-        creator_id=group.creator_id,
-        is_active=group.is_active,
-        member_count=member_count,
-        created_at=group.created_at,
-        updated_at=group.updated_at
-    )
+    group_response = _to_group_response(group, member_count)
     
     return ApiResponse.success(data=group_response, message="更新成功")
 
@@ -270,7 +266,9 @@ async def delete_group(
         )
     
     # 仅创建者可以停用
-    if group.creator_id != current_user.id:
+    creator_id = int(group.creator_id)  
+    user_id = int(current_user.id)  
+    if creator_id != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="仅创建者可以停用家庭组"
@@ -298,6 +296,8 @@ async def add_member(
     group_repo = FamilyGroupRepository(db)
     member_repo = FamilyMemberRepository(db)
     
+    user_id = int(current_user.id)  
+    
     # 检查家庭组是否存在
     group = await group_repo.get_by_id(group_id)
     if not group:
@@ -307,7 +307,7 @@ async def add_member(
         )
     
     # 检查权限
-    if not await member_repo.is_admin(group_id, current_user.id):
+    if not await member_repo.is_admin(group_id, user_id):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="仅管理员可以添加成员"
@@ -328,17 +328,7 @@ async def add_member(
         nickname=data.nickname
     )
     
-    member_response = FamilyMemberResponse(
-        id=member.id,
-        group_id=member.group_id,
-        user_id=member.user_id,
-        role=member.role,
-        nickname=member.nickname,
-        is_active=member.is_active,
-        joined_at=member.joined_at,
-        user_phone=member.user.phone if member.user else None,
-        user_nickname=member.user.nickname if member.user else None
-    )
+    member_response = _to_member_response(member)
     
     return ApiResponse.success(data=member_response, message="添加成功")
 
@@ -359,16 +349,26 @@ async def update_member(
     """
     member_repo = FamilyMemberRepository(db)
     
+    user_id = int(current_user.id)  
+    
     # 检查权限
     target_member = await member_repo.get_by_id(member_id)
-    if not target_member or target_member.group_id != group_id:
+    if not target_member:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="成员不存在"
         )
     
-    is_admin = await member_repo.is_admin(group_id, current_user.id)
-    is_self = target_member.user_id == current_user.id
+    target_group_id = int(target_member.group_id)  
+    if target_group_id != group_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="成员不存在"
+        )
+    
+    is_admin = await member_repo.is_admin(group_id, user_id)
+    target_user_id = int(target_member.user_id)  
+    is_self = target_user_id == user_id
     
     # 更新角色需要管理员权限
     if data.role is not None and not is_admin:
@@ -393,19 +393,11 @@ async def update_member(
     # 刷新数据
     updated_member = await member_repo.get_by_id(member_id)
     
-    member_response = FamilyMemberResponse(
-        id=updated_member.id,
-        group_id=updated_member.group_id,
-        user_id=updated_member.user_id,
-        role=updated_member.role,
-        nickname=updated_member.nickname,
-        is_active=updated_member.is_active,
-        joined_at=updated_member.joined_at,
-        user_phone=updated_member.user.phone if updated_member.user else None,
-        user_nickname=updated_member.user.nickname if updated_member.user else None
-    )
-    
-    return ApiResponse.success(data=member_response, message="更新成功")
+    if updated_member:
+        member_response = _to_member_response(updated_member)
+        return ApiResponse.success(data=member_response, message="更新成功")
+    else:
+        raise HTTPException(status_code=404, detail="成员不存在")
 
 
 @router.delete("/groups/{group_id}/members/{member_id}", response_model=ApiResponse[None])
@@ -423,15 +415,25 @@ async def remove_member(
     """
     member_repo = FamilyMemberRepository(db)
     
+    user_id = int(current_user.id)  
+    
     target_member = await member_repo.get_by_id(member_id)
-    if not target_member or target_member.group_id != group_id:
+    if not target_member:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="成员不存在"
         )
     
-    is_admin = await member_repo.is_admin(group_id, current_user.id)
-    is_self = target_member.user_id == current_user.id
+    target_group_id = int(target_member.group_id)  
+    if target_group_id != group_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="成员不存在"
+        )
+    
+    is_admin = await member_repo.is_admin(group_id, user_id)
+    target_user_id = int(target_member.user_id)  
+    is_self = target_user_id == user_id
     
     # 管理员可移除其他成员，成员可退出
     if not (is_admin or is_self):
@@ -443,11 +445,18 @@ async def remove_member(
     # 不能移除创建者
     group_repo = FamilyGroupRepository(db)
     group = await group_repo.get_by_id(group_id)
-    if target_member.user_id == group.creator_id:
+    target_user_id = int(target_member.user_id)  
+    if not group:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="家庭组不存在"
+        )
+    creator_id = int(group.creator_id)  
+    if target_user_id == creator_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="不能移除家庭组创建者"
         )
     
-    await member_repo.remove_member(group_id, target_member.user_id)
+    await member_repo.remove_member(group_id, target_user_id)
     return ApiResponse.success(message="移除成功")

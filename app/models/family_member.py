@@ -3,10 +3,15 @@ Family Member Model
 家庭成员模型
 """
 import enum
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Enum, UniqueConstraint, Boolean
-from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
+from typing import Optional, TYPE_CHECKING
+from datetime import datetime
+from sqlalchemy import String, ForeignKey, Enum, UniqueConstraint, func
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
+
+if TYPE_CHECKING:
+    from app.models.family_group import FamilyGroup
+    from app.models.user import User
 
 
 class MemberRole(str, enum.Enum):
@@ -20,17 +25,17 @@ class FamilyMember(Base):
     """家庭成员表"""
     __tablename__ = "family_members"
     
-    id = Column(Integer, primary_key=True, index=True, comment="成员关系ID")
-    group_id = Column(Integer, ForeignKey("family_groups.id"), nullable=False, comment="家庭组ID")
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, comment="用户ID")
-    role = Column(Enum(MemberRole), default=MemberRole.MEMBER, comment="角色")
-    nickname = Column(String(50), comment="在家庭组中的昵称")
-    is_active = Column(Boolean, default=True, comment="是否激活")
-    joined_at = Column(DateTime(timezone=True), server_default=func.now(), comment="加入时间")
+    id: Mapped[int] = mapped_column(primary_key=True, index=True, comment="成员关系ID")
+    group_id: Mapped[int] = mapped_column(ForeignKey("family_groups.id"), comment="家庭组ID")
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), comment="用户ID")
+    role: Mapped[MemberRole] = mapped_column(Enum(MemberRole), default=MemberRole.MEMBER, comment="角色")
+    nickname: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, comment="在家庭组中的昵称")
+    is_active: Mapped[bool] = mapped_column(default=True, comment="是否激活")
+    joined_at: Mapped[datetime] = mapped_column(server_default=func.now(), comment="加入时间")
     
     # Relationships
-    group = relationship("FamilyGroup", back_populates="members")
-    user = relationship("User", back_populates="family_memberships")
+    group: Mapped["FamilyGroup"] = relationship(back_populates="members")
+    user: Mapped["User"] = relationship(back_populates="family_memberships")
     
     # Constraints
     __table_args__ = (

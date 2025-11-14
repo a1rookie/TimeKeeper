@@ -36,9 +36,10 @@ async def list_push_tasks(
     """
     获取推送任务列表
     """
-    tasks, total = PushTaskRepository.list_by_user(
+    user_id = int(current_user.id)  
+    tasks, total = await PushTaskRepository.list_by_user(
         db=db,
-        user_id=current_user.id,
+        user_id=user_id,
         skip=skip,
         limit=limit,
         status=status,
@@ -62,10 +63,11 @@ async def get_push_task(
     """
     获取单个推送任务详情
     """
-    task = PushTaskRepository.get_by_id(
-        db=db,
+    user_id = int(current_user.id)
+    repo = PushTaskRepository(db)
+    task = await repo.get_by_id(
         task_id=task_id,
-        user_id=current_user.id
+        user_id=user_id
     )
     
     if not task:
@@ -86,11 +88,12 @@ async def create_push_task(
     """
     创建推送任务
     """
+    user_id = int(current_user.id)  
     try:
-        task = create_push_task_for_reminder(
+        task = await create_push_task_for_reminder(
             db=db,
             reminder_id=task_data.reminder_id,
-            user_id=current_user.id,
+            user_id=user_id,
             scheduled_time=task_data.scheduled_time
         )
         return ApiResponse.success(data=task)
@@ -116,10 +119,11 @@ async def update_push_task(
     """
     更新推送任务
     """
-    task = PushTaskRepository.get_by_id(
-        db=db,
+    user_id = int(current_user.id)
+    repo = PushTaskRepository(db)
+    task = await repo.get_by_id(
         task_id=task_id,
-        user_id=current_user.id
+        user_id=user_id
     )
     
     if not task:
@@ -129,7 +133,8 @@ async def update_push_task(
         )
     
     # 只允许更新PENDING状态的任务
-    if task.status != PushStatus.PENDING:
+    task_status = str(task.status)  
+    if task_status != PushStatus.PENDING.value:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Can only update pending tasks"
@@ -144,7 +149,7 @@ async def update_push_task(
     if task_data.content is not None:
         update_data["content"] = task_data.content
     
-    task = PushTaskRepository.update(db=db, task=task, **update_data)
+    task = await PushTaskRepository.update(db=db, task=task, **update_data)
     
     return ApiResponse.success(data=task)
 
@@ -158,10 +163,11 @@ async def cancel_push_task(
     """
     取消推送任务（将状态设为CANCELLED）
     """
-    task = PushTaskRepository.get_by_id(
-        db=db,
+    user_id = int(current_user.id)
+    repo = PushTaskRepository(db)
+    task = await repo.get_by_id(
         task_id=task_id,
-        user_id=current_user.id
+        user_id=user_id
     )
     
     if not task:
@@ -171,13 +177,14 @@ async def cancel_push_task(
         )
     
     # 只允许取消PENDING状态的任务
-    if task.status != PushStatus.PENDING:
+    task_status = str(task.status)  
+    if task_status != PushStatus.PENDING.value:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Can only cancel pending tasks"
         )
     
-    PushTaskRepository.cancel(db=db, task=task)
+    await repo.cancel(task=task)
 
 
 @router.post("/{task_id}/retry", response_model=ApiResponse[PushTaskResponse])
@@ -189,10 +196,11 @@ async def retry_push_task(
     """
     重试失败的推送任务
     """
-    task = PushTaskRepository.get_by_id(
-        db=db,
+    user_id = int(current_user.id)
+    repo = PushTaskRepository(db)
+    task = await repo.get_by_id(
         task_id=task_id,
-        user_id=current_user.id
+        user_id=user_id
     )
     
     if not task:
@@ -202,14 +210,15 @@ async def retry_push_task(
         )
     
     # 只允许重试FAILED状态的任务
-    if task.status != PushStatus.FAILED:
+    task_status = str(task.status)  
+    if task_status != PushStatus.FAILED.value:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Can only retry failed tasks"
         )
     
     # 重置状态以便重试
-    task = PushTaskRepository.reset_for_retry(db=db, task=task)
+    task = await PushTaskRepository.reset_for_retry(db=db, task=task)
     
     return ApiResponse.success(data=task)
 
@@ -222,4 +231,6 @@ async def get_push_stats(
     """
     获取推送统计信息
     """
-    return ApiResponse.success(data=PushTaskRepository.get_statistics(db=db, user_id=current_user.id))
+    user_id = int(current_user.id)  
+    stats = await PushTaskRepository.get_statistics(db=db, user_id=user_id)
+    return ApiResponse.success(data=stats)

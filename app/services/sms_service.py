@@ -13,7 +13,7 @@ import json
 import random
 import structlog
 from datetime import datetime, timedelta
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.redis import get_redis
 
@@ -51,6 +51,10 @@ class AliyunSmsService(SmsService):
             from alibabacloud_tea_openapi import models as open_api_models
             from alibabacloud_tea_util import models as util_models
             
+            # 验证密钥存在
+            if not self.access_key_id or not self.access_key_secret:
+                raise ValueError("Missing ALIYUN_ACCESS_KEY_ID or ALIYUN_ACCESS_KEY_SECRET")
+            
             config = open_api_models.Config(
                 access_key_id=self.access_key_id,
                 access_key_secret=self.access_key_secret,
@@ -74,6 +78,10 @@ class AliyunSmsService(SmsService):
             return NoopSmsService().send_sms(phone_number, sign_name, template_code, template_param)
 
         try:
+            # 类型保护检查
+            if not self.models or not self.runtime_models or not self.client:
+                return False
+            
             # 使用个人测试模式的号码认证服务API
             request = self.models.SendSmsVerifyCodeRequest(
                 sign_name=sign_name,
@@ -109,12 +117,12 @@ def get_sms_service() -> SmsService:
 
 
 # Helper: generate code and store in redis + database
-def generate_and_store_code(
+async def generate_and_store_code(
     phone: str,
     purpose: str = 'register',
     ip_address: Optional[str] = None,
     user_agent: Optional[str] = None,
-    db: Optional[Session] = None
+    db: Optional[AsyncSession] = None
 ) -> Tuple[str, Optional[int]]:
     """
     生成6位数字验证码并存入Redis和数据库
@@ -135,18 +143,18 @@ def generate_and_store_code(
         sms_repo = SmsLogRepository(db)
         
         # 检查手机号每日发送次数
-        phone_count_today = sms_repo.count_by_phone_today(phone, purpose)
+        phone_count_today = await sms_repo.count_by_phone_today(phone, purpose)
         if phone_count_today >= settings.MAX_SMS_PER_PHONE_PER_DAY:
             raise RuntimeError(f'手机号 {phone} 今日发送次数已达上限')
         
         # 检查IP每日发送次数
         if ip_address:
-            ip_count_today = sms_repo.count_by_ip_today(ip_address)
+            ip_count_today = await sms_repo.count_by_ip_today(ip_address)
             if ip_count_today >= settings.MAX_SMS_PER_IP_PER_DAY:
                 raise RuntimeError(f'IP {ip_address} 今日发送次数已达上限')
         
         # 检查1分钟内重复发送
-        recent_count = sms_repo.count_recent(phone, purpose, minutes=1)
+        recent_count = await sms_repo.count_recent(phone, purpose, minutes=1)
         if recent_count > 0:
             raise RuntimeError('发送过于频繁，请稍后再试')
 
@@ -169,7 +177,7 @@ def generate_and_store_code(
     log_id = None
     if db:
         expires_at = datetime.now() + timedelta(seconds=settings.SMS_CODE_EXPIRE_SECONDS)
-        log = sms_repo.create(
+        log = await sms_repo.create(
             phone=phone,
             purpose=purpose,
             code=code[:3] + "***",  # 脱敏存储
@@ -183,11 +191,11 @@ def generate_and_store_code(
     return code, log_id
 
 
-def verify_code(
+async def verify_code(
     phone: str,
     code: str,
     purpose: str = 'register',
-    db: Optional[Session] = None
+    db: Optional[AsyncSession] = None
 ) -> bool:
     """
     验证短信验证码
@@ -205,7 +213,7 @@ def verify_code(
         sms_repo = SmsLogRepository(db)
         
         # 获取最新未验证记录
-        latest_log = sms_repo.get_latest_unverified(phone, purpose)
+        latest_log = await sms_repo.get_latest_unverified(phone, purpose)
         if latest_log and latest_log.verify_attempts >= settings.MAX_VERIFY_ATTEMPTS:
             raise RuntimeError('验证码尝试次数过多，请重新获取')
     
@@ -214,7 +222,7 @@ def verify_code(
     
     # 记录尝试次数
     if db:
-        attempts = sms_repo.increment_verify_attempts(phone, purpose)
+        attempts = await sms_repo.increment_verify_attempts(phone, purpose)
         logger.info(f"Verify attempt for {phone}/{purpose}: {attempts}/{settings.MAX_VERIFY_ATTEMPTS}")
     
     if not value:
@@ -226,15 +234,15 @@ def verify_code(
         
         # 标记数据库记录为已验证
         if db and latest_log:
-            sms_repo.mark_verified(latest_log.id)
+            await sms_repo.mark_verified(latest_log.id)
         
         return True
     
     return False
 
 
-def update_sms_log_status(
-    db: Session,
+async def update_sms_log_status(
+    db: AsyncSession,
     log_id: int,
     status: str,
     error_message: Optional[str] = None
@@ -242,4 +250,4 @@ def update_sms_log_status(
     """更新短信日志发送状态"""
     from app.repositories.sms_log_repository import SmsLogRepository
     sms_repo = SmsLogRepository(db)
-    sms_repo.update_status(log_id, status, error_message)
+    await sms_repo.update_status(log_id, status, error_message)

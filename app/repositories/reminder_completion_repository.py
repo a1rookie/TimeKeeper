@@ -57,23 +57,27 @@ class ReminderCompletionRepository:
         limit: int = 100
     ) -> List[ReminderCompletion]:
         """获取某个提醒的所有完成记录"""
-        return self.db.query(ReminderCompletion).filter(
+        stmt = select(ReminderCompletion).where(
             ReminderCompletion.reminder_id == reminder_id
         ).order_by(
             ReminderCompletion.completed_time.desc()
-        ).offset(skip).limit(limit).all()
+        ).offset(skip).limit(limit)
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
     
     async def get_latest_by_reminder(self, reminder_id: int) -> Optional[ReminderCompletion]:
         """获取某个提醒的最新完成记录"""
-        return self.db.query(ReminderCompletion).filter(
+        stmt = select(ReminderCompletion).where(
             ReminderCompletion.reminder_id == reminder_id
         ).order_by(
             ReminderCompletion.completed_time.desc()
-        ).first()
+        ).limit(1)
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
     
     async def delete_latest(self, reminder_id: int) -> bool:
         """删除最新的完成记录（用于取消完成）"""
-        latest = self.get_latest_by_reminder(reminder_id)
+        latest = await self.get_latest_by_reminder(reminder_id)
         if latest:
             await self.db.delete(latest)
             await self.db.commit()
@@ -82,9 +86,12 @@ class ReminderCompletionRepository:
     
     async def count_by_reminder(self, reminder_id: int) -> int:
         """统计某个提醒的完成次数"""
-        return self.db.query(ReminderCompletion).filter(
+        from sqlalchemy import func
+        stmt = select(func.count()).select_from(ReminderCompletion).where(
             ReminderCompletion.reminder_id == reminder_id
-        ).count()
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar() or 0
     
     async def count_by_user(
         self,
@@ -93,13 +100,48 @@ class ReminderCompletionRepository:
         end_date: Optional[datetime] = None
     ) -> int:
         """统计用户在时间范围内的完成次数"""
-        query = self.db.query(ReminderCompletion).filter(
+        from sqlalchemy import func
+        stmt = select(func.count()).select_from(ReminderCompletion).where(
             ReminderCompletion.user_id == user_id
         )
         
         if start_date:
-            query = query.filter(ReminderCompletion.completed_time >= start_date)
+            stmt = stmt.where(ReminderCompletion.completed_time >= start_date)
         if end_date:
-            query = query.filter(ReminderCompletion.completed_time <= end_date)
+            stmt = stmt.where(ReminderCompletion.completed_time <= end_date)
         
-        return query.count()
+        result = await self.db.execute(stmt)
+        return result.scalar() or 0
+    
+    async def check_recent_completion(
+        self,
+        reminder_id: int,
+        scheduled_time: datetime,
+        time_window_hours: int = 1
+    ) -> Optional[ReminderCompletion]:
+        """检查最近是否有完成记录（防重复）"""
+        from datetime import timedelta
+        time_window = timedelta(hours=time_window_hours)
+        stmt = select(ReminderCompletion).where(
+            ReminderCompletion.reminder_id == reminder_id,
+            ReminderCompletion.scheduled_time >= scheduled_time - time_window,
+            ReminderCompletion.scheduled_time <= scheduled_time + time_window
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+    
+    async def get_by_user_since(
+        self,
+        user_id: int,
+        since: datetime,
+        limit: int = 1000
+    ) -> List[ReminderCompletion]:
+        """获取用户指定时间后的完成记录"""
+        stmt = select(ReminderCompletion).where(
+            ReminderCompletion.user_id == user_id,
+            ReminderCompletion.completed_time >= since
+        ).order_by(
+            ReminderCompletion.completed_time.desc()
+        ).limit(limit)
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())

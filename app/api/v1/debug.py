@@ -4,6 +4,7 @@ Health Check & System Monitoring Endpoints
 """
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text
 from app.core.database import get_db
 from app.core.redis import get_redis
 from app.core.config import settings
@@ -38,7 +39,7 @@ async def readiness_check(db: AsyncSession = Depends(get_db)):
     
     # 检查数据库
     try:
-        db.execute("SELECT 1")
+        await db.execute(text("SELECT 1"))
         checks["database"] = "connected"
     except Exception as e:
         checks["database"] = f"error: {str(e)}"

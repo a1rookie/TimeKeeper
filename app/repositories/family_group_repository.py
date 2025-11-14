@@ -36,29 +36,33 @@ class FamilyGroupRepository:
     
     async def get_by_creator(self, creator_id: int) -> List[FamilyGroup]:
         """查询用户创建的所有家庭组"""
-        return self.db.query(FamilyGroup).filter(
+        stmt = select(FamilyGroup).where(
             and_(
                 FamilyGroup.creator_id == creator_id,
                 FamilyGroup.is_active == True
             )
-        ).all()
+        )
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
     
     async def get_user_groups(self, user_id: int) -> List[FamilyGroup]:
         """查询用户所在的所有家庭组（包括创建和加入的）"""
-        return self.db.query(FamilyGroup).join(
+        stmt = select(FamilyGroup).join(
             FamilyMember,
             FamilyGroup.id == FamilyMember.group_id
-        ).filter(
+        ).where(
             and_(
                 FamilyMember.user_id == user_id,
                 FamilyMember.is_active == True,
                 FamilyGroup.is_active == True
             )
-        ).all()
+        )
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
     
     async def update(self, group_id: int, **kwargs) -> Optional[FamilyGroup]:
         """更新家庭组信息"""
-        group = self.get_by_id(group_id)
+        group = await self.get_by_id(group_id)
         if not group:
             return None
         
@@ -72,7 +76,7 @@ class FamilyGroupRepository:
     
     async def deactivate(self, group_id: int) -> bool:
         """停用家庭组"""
-        group = self.get_by_id(group_id)
+        group = await self.get_by_id(group_id)
         if not group:
             return False
         
@@ -82,9 +86,12 @@ class FamilyGroupRepository:
     
     async def get_member_count(self, group_id: int) -> int:
         """获取家庭组成员数量"""
-        return self.db.query(FamilyMember).filter(
+        from sqlalchemy import func
+        stmt = select(func.count()).select_from(FamilyMember).where(
             and_(
                 FamilyMember.group_id == group_id,
                 FamilyMember.is_active == True
             )
-        ).count()
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar() or 0

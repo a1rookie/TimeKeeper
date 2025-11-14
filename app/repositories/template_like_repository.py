@@ -18,7 +18,7 @@ class TemplateLikeRepository:
     async def add_like(self, template_share_id: int, user_id: int) -> Optional[TemplateLike]:
         """添加点赞"""
         # 检查是否已经点赞
-        existing = self.get_like(template_share_id, user_id)
+        existing = await self.get_like(template_share_id, user_id)
         if existing:
             return existing
         
@@ -33,7 +33,7 @@ class TemplateLikeRepository:
     
     async def remove_like(self, template_share_id: int, user_id: int) -> bool:
         """取消点赞"""
-        like = self.get_like(template_share_id, user_id)
+        like = await self.get_like(template_share_id, user_id)
         if not like:
             return False
         
@@ -43,32 +43,41 @@ class TemplateLikeRepository:
     
     async def get_like(self, template_share_id: int, user_id: int) -> Optional[TemplateLike]:
         """查询用户是否点赞了某个模板"""
-        return self.db.query(TemplateLike).filter(
+        stmt = select(TemplateLike).where(
             and_(
                 TemplateLike.template_share_id == template_share_id,
                 TemplateLike.user_id == user_id
             )
-        ).first()
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
     
     async def is_liked(self, template_share_id: int, user_id: int) -> bool:
         """检查用户是否点赞"""
-        return self.get_like(template_share_id, user_id) is not None
+        like = await self.get_like(template_share_id, user_id)
+        return like is not None
     
     async def get_user_likes(self, user_id: int) -> List[TemplateLike]:
         """获取用户的所有点赞记录"""
-        return self.db.query(TemplateLike).filter(
+        stmt = select(TemplateLike).where(
             TemplateLike.user_id == user_id
-        ).order_by(TemplateLike.created_at.desc()).all()
+        ).order_by(TemplateLike.created_at.desc())
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
     
     async def get_template_likes(self, template_share_id: int) -> List[TemplateLike]:
         """获取模板的所有点赞记录"""
-        result = await self.db.execute(select(TemplateLike).filter(
+        stmt = select(TemplateLike).where(
             TemplateLike.template_share_id == template_share_id
-        ))
+        )
+        result = await self.db.execute(stmt)
         return list(result.scalars().all())
     
     async def get_like_count(self, template_share_id: int) -> int:
         """获取模板的点赞数量"""
-        return self.db.query(TemplateLike).filter(
+        from sqlalchemy import func
+        stmt = select(func.count()).select_from(TemplateLike).where(
             TemplateLike.template_share_id == template_share_id
-        ).count()
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar() or 0

@@ -36,6 +36,70 @@ from app.repositories.family_member_repository import FamilyMemberRepository
 router = APIRouter()
 
 
+def _to_system_template_response(t) -> ReminderTemplateResponse:
+    """将 ReminderTemplate 模型转换为响应对象"""
+    return ReminderTemplateResponse(
+        id=int(t.id),  
+        name=str(t.name),  
+        category=str(t.category),  
+        description=str(t.description) if t.description else None,  
+        default_recurrence_type=str(t.default_recurrence_type) if t.default_recurrence_type else None,  
+        default_recurrence_config=dict(t.default_recurrence_config) if t.default_recurrence_config else None,  
+        default_remind_advance_days=int(t.default_remind_advance_days) if t.default_remind_advance_days else None,  
+        usage_count=int(t.usage_count),  
+        is_active=bool(t.is_active),  
+        created_at=t.created_at  
+    )
+
+
+def _to_custom_template_response(t) -> UserCustomTemplateResponse:
+    """将 UserCustomTemplate 模型转换为响应对象"""
+    return UserCustomTemplateResponse(
+        id=int(t.id),  
+        user_id=int(t.user_id),  
+        name=str(t.name),  
+        description=str(t.description) if t.description else None,  
+        recurrence_type=str(t.recurrence_type) if t.recurrence_type else None,  
+        recurrence_config=dict(t.recurrence_config) if t.recurrence_config else None,  
+        remind_advance_days=int(t.remind_advance_days) if t.remind_advance_days else None,  
+        created_from_template_id=int(t.created_from_template_id) if t.created_from_template_id else None,  
+        created_at=t.created_at,  
+        updated_at=t.updated_at  
+    )
+
+
+def _to_share_response(s, owner_nickname=None, template_name=None) -> TemplateShareResponse:
+    """将 TemplateShare 模型转换为响应对象"""
+    return TemplateShareResponse(
+        id=int(s.id),  
+        template_id=int(s.template_id),  
+        user_id=int(s.user_id),  
+        share_type=s.share_type,  
+        share_code=str(s.share_code),  
+        share_title=str(s.share_title),  
+        share_description=str(s.share_description) if s.share_description else None,  
+        family_group_id=int(s.family_group_id) if s.family_group_id else None,  
+        usage_count=int(s.usage_count),  
+        like_count=int(s.like_count),  
+        is_active=bool(s.is_active),  
+        created_at=s.created_at,  
+        owner_nickname=owner_nickname,
+        template_name=template_name
+    )
+
+
+def _to_usage_response(u) -> TemplateUsageResponse:
+    """将 TemplateUsageRecord 模型转换为响应对象"""
+    return TemplateUsageResponse(
+        id=int(u.id),  
+        template_share_id=int(u.template_share_id),  
+        user_id=int(u.user_id),  
+        feedback_rating=int(u.feedback_rating) if u.feedback_rating else None,  
+        feedback_comment=str(u.feedback_comment) if u.feedback_comment else None,  
+        used_at=u.used_at  
+    )
+
+
 # ==================== 系统模板 ====================
 
 @router.get("/templates/system", response_model=ApiResponse[List[ReminderTemplateResponse]])
@@ -55,20 +119,7 @@ async def list_system_templates(
     else:
         templates = await template_repo.get_all_active()
     
-    return ApiResponse.success(data=[
-        ReminderTemplateResponse(
-            id=t.id,
-            name=t.name,
-            category=t.category,
-            description=t.description,
-            default_recurrence_type=t.default_recurrence_type,
-            default_recurrence_config=t.default_recurrence_config,
-            default_remind_advance_days=t.default_remind_advance_days,
-            usage_count=t.usage_count,
-            is_active=t.is_active,
-            created_at=t.created_at
-        ) for t in templates
-    ])
+    return ApiResponse.success(data=[_to_system_template_response(t) for t in templates])
 
 
 @router.get("/templates/system/{template_id}", response_model=ApiResponse[ReminderTemplateResponse])
@@ -86,18 +137,7 @@ async def get_system_template(
             detail="系统模板不存在"
         )
     
-    return ApiResponse.success(data=ReminderTemplateResponse(
-        id=template.id,
-        name=template.name,
-        category=template.category,
-        description=template.description,
-        default_recurrence_type=template.default_recurrence_type,
-        default_recurrence_config=template.default_recurrence_config,
-        default_remind_advance_days=template.default_remind_advance_days,
-        usage_count=template.usage_count,
-        is_active=template.is_active,
-        created_at=template.created_at
-    ))
+    return ApiResponse.success(data=_to_system_template_response(template))
 
 
 @router.get("/templates/system/popular", response_model=ApiResponse[List[ReminderTemplateResponse]])
@@ -109,20 +149,7 @@ async def get_popular_templates(
     template_repo = ReminderTemplateRepository(db)
     templates = await template_repo.get_popular(limit=limit)
     
-    return ApiResponse.success(data=[
-        ReminderTemplateResponse(
-            id=t.id,
-            name=t.name,
-            category=t.category,
-            description=t.description,
-            default_recurrence_type=t.default_recurrence_type,
-            default_recurrence_config=t.default_recurrence_config,
-            default_remind_advance_days=t.default_remind_advance_days,
-            usage_count=t.usage_count,
-            is_active=t.is_active,
-            created_at=t.created_at
-        ) for t in templates
-    ])
+    return ApiResponse.success(data=[_to_system_template_response(t) for t in templates])
 
 
 # ==================== 用户自定义模板 ====================
@@ -137,10 +164,11 @@ async def create_custom_template(
     创建用户自定义模板
     - 可以基于系统模板创建
     """
+    user_id = int(current_user.id)  
     template_repo = UserCustomTemplateRepository(db)
     
     # 检查名称是否重复
-    existing = await template_repo.get_by_user_and_name(current_user.id, data.name)
+    existing = await template_repo.get_by_user_and_name(user_id, data.name)
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -150,10 +178,10 @@ async def create_custom_template(
     # 如果基于系统模板，增加系统模板使用次数
     if data.created_from_template_id:
         system_template_repo = ReminderTemplateRepository(db)
-        system_template_repo.increment_usage(data.created_from_template_id)
+        await system_template_repo.increment_usage(data.created_from_template_id)
     
     template = await template_repo.create(
-        user_id=current_user.id,
+        user_id=user_id,
         name=data.name,
         description=data.description,
         recurrence_type=data.recurrence_type,
@@ -162,18 +190,7 @@ async def create_custom_template(
         created_from_template_id=data.created_from_template_id
     )
     
-    return ApiResponse.success(data=UserCustomTemplateResponse(
-        id=template.id,
-        user_id=template.user_id,
-        name=template.name,
-        description=template.description,
-        recurrence_type=template.recurrence_type,
-        recurrence_config=template.recurrence_config,
-        remind_advance_days=template.remind_advance_days,
-        created_from_template_id=template.created_from_template_id,
-        created_at=template.created_at,
-        updated_at=template.updated_at
-    ))
+    return ApiResponse.success(data=_to_custom_template_response(template))
 
 
 @router.get("/templates/custom", response_model=ApiResponse[List[UserCustomTemplateResponse]])
@@ -182,22 +199,11 @@ async def list_my_templates(
     current_user: User = Depends(get_current_user)
 ):
     """获取我的自定义模板列表"""
+    user_id = int(current_user.id)  
     template_repo = UserCustomTemplateRepository(db)
-    templates = await template_repo.get_user_templates(current_user.id)
+    templates = await template_repo.get_user_templates(user_id)
     
-    return ApiResponse.success(data=[
-        UserCustomTemplateResponse(
-            id=t.id,
-            user_id=t.user_id,
-            name=t.name,
-            description=t.description,
-            recurrence_type=t.recurrence_type,
-            recurrence_config=t.recurrence_config,
-            remind_advance_days=t.remind_advance_days,
-            created_from_template_id=t.created_from_template_id,
-            created_at=t.created_at,
-            updated_at=t.updated_at
-        ) for t in templates
+    return ApiResponse.success(data=[_to_custom_template_response(t) for t in templates
     ])
 
 
@@ -218,7 +224,10 @@ async def update_custom_template(
             detail="模板不存在"
         )
     
-    if template.user_id != current_user.id:
+    # 提取用户 ID 进行比较
+    template_user_id = int(template.user_id)  
+    user_id = int(current_user.id)  
+    if template_user_id != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="无权修改该模板"
@@ -227,18 +236,10 @@ async def update_custom_template(
     update_data = data.model_dump(exclude_unset=True)
     updated_template = await template_repo.update(template_id, **update_data)
     
-    return ApiResponse.success(data=UserCustomTemplateResponse(
-        id=updated_template.id,
-        user_id=updated_template.user_id,
-        name=updated_template.name,
-        description=updated_template.description,
-        recurrence_type=updated_template.recurrence_type,
-        recurrence_config=updated_template.recurrence_config,
-        remind_advance_days=updated_template.remind_advance_days,
-        created_from_template_id=updated_template.created_from_template_id,
-        created_at=updated_template.created_at,
-        updated_at=updated_template.updated_at
-    ))
+    if updated_template:
+        return ApiResponse.success(data=_to_custom_template_response(updated_template))
+    else:
+        raise HTTPException(status_code=404, detail="模板不存在")
 
 
 @router.delete("/templates/custom/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -257,13 +258,16 @@ async def delete_custom_template(
             detail="模板不存在"
         )
     
-    if template.user_id != current_user.id:
+    # 提取用户 ID 进行比较
+    template_user_id = int(template.user_id)  
+    user_id = int(current_user.id)  
+    if template_user_id != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="无权删除该模板"
         )
     
-    template_repo.delete(template_id)
+    await template_repo.delete(template_id)
     return None
 
 
@@ -290,7 +294,10 @@ async def share_template(
             detail="模板不存在"
         )
     
-    if template.user_id != current_user.id:
+    # 提取用户 ID 进行比较
+    template_user_id = int(template.user_id)  
+    user_id = int(current_user.id)  
+    if template_user_id != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="无权分享该模板"
@@ -304,39 +311,28 @@ async def share_template(
                 detail="家庭分享需要指定家庭组ID"
             )
         
+        user_id = int(current_user.id)  
         member_repo = FamilyMemberRepository(db)
-        if not await member_repo.is_member(data.family_group_id, current_user.id):
+        if not await member_repo.is_member(data.family_group_id, user_id):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="不是该家庭组成员"
             )
     
     # 创建分享
+    user_id = int(current_user.id)  
     share = await share_repo.create(
         template_id=data.template_id,
-        user_id=current_user.id,
+        user_id=user_id,
         share_type=data.share_type,
         share_title=data.share_title,
         share_description=data.share_description,
         family_group_id=data.family_group_id
     )
     
-    return ApiResponse.success(data=TemplateShareResponse(
-        id=share.id,
-        template_id=share.template_id,
-        user_id=share.user_id,
-        share_type=share.share_type,
-        share_code=share.share_code,
-        share_title=share.share_title,
-        share_description=share.share_description,
-        family_group_id=share.family_group_id,
-        usage_count=share.usage_count,
-        like_count=share.like_count,
-        is_active=share.is_active,
-        created_at=share.created_at,
-        owner_nickname=current_user.nickname,
-        template_name=template.name
-    ))
+    owner_nickname = str(current_user.nickname) if current_user.nickname else None  
+    template_name = str(template.name) if template.name else None  
+    return ApiResponse.success(data=_to_share_response(share, owner_nickname, template_name))
 
 
 @router.get("/templates/share/public", response_model=ApiResponse[List[TemplateShareResponse]])
@@ -349,24 +345,7 @@ async def list_public_shares(
     share_repo = TemplateShareRepository(db)
     shares = await share_repo.get_public_shares(limit=limit, offset=offset)
     
-    return ApiResponse.success(data=[
-        TemplateShareResponse(
-            id=s.id,
-            template_id=s.template_id,
-            user_id=s.user_id,
-            share_type=s.share_type,
-            share_code=s.share_code,
-            share_title=s.share_title,
-            share_description=s.share_description,
-            family_group_id=s.family_group_id,
-            usage_count=s.usage_count,
-            like_count=s.like_count,
-            is_active=s.is_active,
-            created_at=s.created_at,
-            owner_nickname=s.user.nickname if s.user else None,
-            template_name=s.template.name if s.template else None
-        ) for s in shares
-    ])
+    return ApiResponse.success(data=[_to_share_response(s) for s in shares])
 
 
 @router.get("/templates/share/{share_code}", response_model=ApiResponse[TemplateShareDetail])
@@ -389,44 +368,46 @@ async def get_share_detail(
             detail="分享不存在或已失效"
         )
     
+    # 提取 IDs
+    share_type_value = str(share.share_type)  
+    
     # 检查家庭分享的权限
-    if share.share_type == ShareType.FAMILY:
+    if share_type_value == ShareType.FAMILY:
         member_repo = FamilyMemberRepository(db)
-        if not await member_repo.is_member(share.family_group_id, current_user.id):
+        if not share.family_group_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="家庭分享缺少家庭组ID"
+            )
+        family_group_id = int(share.family_group_id)  
+        user_id = int(current_user.id)  
+        if not await member_repo.is_member(family_group_id, user_id):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="无权访问该家庭分享"
             )
     
     # 检查当前用户是否点赞
-    is_liked = await like_repo.is_liked(share.id, current_user.id)
+    share_id = int(share.id)  
+    user_id = int(current_user.id)  
+    is_liked = await like_repo.is_liked(share_id, user_id)
+    
+    # 构造响应
+    share_response = _to_share_response(share)
     
     return ApiResponse.success(data=TemplateShareDetail(
-        id=share.id,
-        template_id=share.template_id,
-        user_id=share.user_id,
-        share_type=share.share_type,
-        share_code=share.share_code,
-        share_title=share.share_title,
-        share_description=share.share_description,
-        family_group_id=share.family_group_id,
-        usage_count=share.usage_count,
-        like_count=share.like_count,
-        is_active=share.is_active,
-        created_at=share.created_at,
-        owner_nickname=share.user.nickname if share.user else None,
-        template_name=share.template.name if share.template else None,
+        **share_response.model_dump(),
         template=UserCustomTemplateResponse(
-            id=share.template.id,
-            user_id=share.template.user_id,
-            name=share.template.name,
-            description=share.template.description,
-            recurrence_type=share.template.recurrence_type,
-            recurrence_config=share.template.recurrence_config,
-            remind_advance_days=share.template.remind_advance_days,
-            created_from_template_id=share.template.created_from_template_id,
-            created_at=share.template.created_at,
-            updated_at=share.template.updated_at
+            id=int(share.template.id),  
+            user_id=int(share.template.user_id),  
+            name=str(share.template.name),  
+            description=str(share.template.description) if share.template.description else None,  
+            recurrence_type=str(share.template.recurrence_type),  
+            recurrence_config=share.template.recurrence_config,  
+            remind_advance_days=int(share.template.remind_advance_days),  
+            created_from_template_id=int(share.template.created_from_template_id) if share.template.created_from_template_id else None,  
+            created_at=share.template.created_at,  
+            updated_at=share.template.updated_at  
         ) if share.template else None,
         is_liked=is_liked
     ))
@@ -454,24 +435,19 @@ async def use_shared_template(
         )
     
     # 增加使用次数
-    share_repo.increment_usage(share.id)
+    share_id = int(share.id)  
+    await share_repo.increment_usage(share_id)
     
     # 创建使用记录
+    user_id = int(current_user.id)  
     usage = await usage_repo.create(
-        template_share_id=share.id,
-        user_id=current_user.id,
+        template_share_id=share_id,
+        user_id=user_id,
         feedback_rating=data.feedback_rating,
         feedback_comment=data.feedback_comment
     )
     
-    return ApiResponse.success(data=TemplateUsageResponse(
-        id=usage.id,
-        template_share_id=usage.template_share_id,
-        user_id=usage.user_id,
-        feedback_rating=usage.feedback_rating,
-        feedback_comment=usage.feedback_comment,
-        used_at=usage.used_at
-    ))
+    return ApiResponse.success(data=_to_usage_response(usage))
 
 
 @router.post("/templates/share/{share_id}/like", status_code=status.HTTP_201_CREATED)
@@ -492,7 +468,8 @@ async def like_template(
         )
     
     # 添加点赞
-    like = await like_repo.add_like(share_id, current_user.id)
+    user_id = int(current_user.id)  
+    like = await like_repo.add_like(share_id, user_id)
     if not like:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -500,7 +477,7 @@ async def like_template(
         )
     
     # 增加点赞数
-    share_repo.increment_like(share_id)
+    await share_repo.increment_like(share_id)
     
     return ApiResponse.success(data={"message": "点赞成功"})
 
@@ -515,7 +492,8 @@ async def unlike_template(
     share_repo = TemplateShareRepository(db)
     like_repo = TemplateLikeRepository(db)
     
-    success = await like_repo.remove_like(share_id, current_user.id)
+    user_id = int(current_user.id)  
+    success = await like_repo.remove_like(share_id, user_id)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -523,7 +501,7 @@ async def unlike_template(
         )
     
     # 减少点赞数
-    share_repo.decrement_like(share_id)
+    await share_repo.decrement_like(share_id)
     
     return None
 
@@ -558,14 +536,20 @@ async def get_template_marketplace(
         # 需要加载模板信息以过滤分类
         filtered_shares = []
         for share in shares:
-            if share.template_id:  # 系统模板
-                template = await template_repo.get_by_id(share.template_id)
-                if template and template.category == category:
-                    filtered_shares.append(share)
+            template_id = int(share.template_id) if share.template_id else None  
+            if template_id:  # 系统模板
+                template = await template_repo.get_by_id(template_id)
+                if template:
+                    template_category = str(template.category)  
+                    if template_category == category:
+                        filtered_shares.append(share)
             else:  # 自定义模板
-                template = await custom_template_repo.get_by_id(share.custom_template_id)
-                if template and template.category == category:
-                    filtered_shares.append(share)
+                custom_template_id = int(share.custom_template_id)  
+                template = await custom_template_repo.get_by_id(custom_template_id)
+                if template:
+                    template_category = str(template.category)  
+                    if template_category == category:
+                        filtered_shares.append(share)
         shares = filtered_shares
     
     # 排序
@@ -582,30 +566,31 @@ async def get_template_marketplace(
     # 构建详细响应
     result = []
     for share in shares:
-        if share.template_id:
-            template = await template_repo.get_by_id(share.template_id)
-            template_name = template.name if template else "未知模板"
-            template_category = template.category if template else "other"
+        template_id = int(share.template_id) if share.template_id else None  
+        if template_id:
+            template = await template_repo.get_by_id(template_id)
+            template_name = str(template.name) if template else "未知模板"  
+            template_category = str(template.category) if template else "other"  
         else:
-            template = await custom_template_repo.get_by_id(share.custom_template_id)
-            template_name = template.name if template else "未知模板"
-            template_category = template.category if template else "other"
+            custom_template_id = int(share.custom_template_id)  
+            template = await custom_template_repo.get_by_id(custom_template_id)
+            template_name = str(template.name) if template else "未知模板"  
+            template_category = str(template.category) if template else "other"  
         
         result.append(TemplateShareDetail(
-            id=share.id,
-            template_id=share.template_id,
-            custom_template_id=share.custom_template_id,
+            id=int(share.id),  
+            template_id=share.template_id,  
             template_name=template_name,
-            template_category=template_category,
-            user_id=share.user_id,
-            share_type=share.share_type,
-            share_code=share.share_code,
-            share_title=share.share_title,
-            share_description=share.share_description,
-            usage_count=share.usage_count,
-            like_count=share.like_count,
-            is_active=share.is_active,
-            created_at=share.created_at
+            user_id=int(share.user_id),  
+            share_type=share.share_type,  
+            share_code=str(share.share_code),  
+            share_title=str(share.share_title),  
+            share_description=str(share.share_description) if share.share_description else None,  
+            family_group_id=int(share.family_group_id) if share.family_group_id else None,  
+            usage_count=int(share.usage_count),  
+            like_count=int(share.like_count),  
+            is_active=bool(share.is_active),  
+            created_at=share.created_at  
         ))
     
     return ApiResponse.success(data=result, message=f"找到 {len(result)} 个公开模板")
@@ -631,20 +616,27 @@ async def search_marketplace_templates(
     matched_shares = []
     for share in all_shares:
         # 检查分享标题和描述
-        if keyword.lower() in (share.share_title or "").lower() or \
-           keyword.lower() in (share.share_description or "").lower():
+        share_title = str(share.share_title) if share.share_title else ""  
+        share_desc = str(share.share_description) if share.share_description else ""  
+        if keyword.lower() in share_title.lower() or keyword.lower() in share_desc.lower():
             matched_shares.append(share)
             continue
         
         # 检查模板名称
-        if share.template_id:
-            template = await template_repo.get_by_id(share.template_id)
-            if template and keyword.lower() in template.name.lower():
-                matched_shares.append(share)
+        template_id = int(share.template_id) if share.template_id else None  
+        if template_id:
+            template = await template_repo.get_by_id(template_id)
+            if template:
+                template_name = str(template.name)  
+                if keyword.lower() in template_name.lower():
+                    matched_shares.append(share)
         else:
-            template = await custom_template_repo.get_by_id(share.custom_template_id)
-            if template and keyword.lower() in template.name.lower():
-                matched_shares.append(share)
+            custom_template_id = int(share.custom_template_id)  
+            template = await custom_template_repo.get_by_id(custom_template_id)
+            if template:
+                template_name = str(template.name)  
+                if keyword.lower() in template_name.lower():
+                    matched_shares.append(share)
     
     # 限制返回数量
     matched_shares = matched_shares[:limit]
@@ -652,30 +644,29 @@ async def search_marketplace_templates(
     # 构建响应
     result = []
     for share in matched_shares:
-        if share.template_id:
-            template = await template_repo.get_by_id(share.template_id)
-            template_name = template.name if template else "未知模板"
-            template_category = template.category if template else "other"
+        template_id = int(share.template_id) if share.template_id else None  
+        if template_id:
+            template = await template_repo.get_by_id(template_id)
+            template_name = str(template.name) if template else "未知模板"  
         else:
-            template = await custom_template_repo.get_by_id(share.custom_template_id)
-            template_name = template.name if template else "未知模板"
-            template_category = template.category if template else "other"
+            custom_template_id = int(share.custom_template_id)  
+            template = await custom_template_repo.get_by_id(custom_template_id)
+            template_name = str(template.name) if template else "未知模板"  
         
         result.append(TemplateShareDetail(
-            id=share.id,
-            template_id=share.template_id,
-            custom_template_id=share.custom_template_id,
+            id=int(share.id),  
+            template_id=share.template_id,  
             template_name=template_name,
-            template_category=template_category,
-            user_id=share.user_id,
-            share_type=share.share_type,
-            share_code=share.share_code,
-            share_title=share.share_title,
-            share_description=share.share_description,
-            usage_count=share.usage_count,
-            like_count=share.like_count,
-            is_active=share.is_active,
-            created_at=share.created_at
+            user_id=int(share.user_id),  
+            share_type=share.share_type,  
+            share_code=str(share.share_code),  
+            share_title=str(share.share_title),  
+            share_description=str(share.share_description) if share.share_description else None,  
+            family_group_id=int(share.family_group_id) if share.family_group_id else None,  
+            usage_count=int(share.usage_count),  
+            like_count=int(share.like_count),  
+            is_active=bool(share.is_active),  
+            created_at=share.created_at  
         ))
     
     return ApiResponse.success(data=result, message=f"找到 {len(result)} 个匹配模板")
@@ -698,12 +689,14 @@ async def get_marketplace_categories(
     # 统计各分类数量
     category_stats = {}
     for share in all_shares:
-        if share.template_id:
-            template = await template_repo.get_by_id(share.template_id)
-            category = template.category if template else "other"
+        template_id = int(share.template_id) if share.template_id else None  
+        if template_id:
+            template = await template_repo.get_by_id(template_id)
+            category = str(template.category) if template else "other"  
         else:
-            template = await custom_template_repo.get_by_id(share.custom_template_id)
-            category = template.category if template else "other"
+            custom_template_id = int(share.custom_template_id)  
+            template = await custom_template_repo.get_by_id(custom_template_id)
+            category = str(template.category) if template else "other"  
         
         if category not in category_stats:
             category_stats[category] = 0

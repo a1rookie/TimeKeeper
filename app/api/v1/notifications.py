@@ -2,6 +2,7 @@
 Family Notification API
 家庭通知的 API 路由
 """
+import re
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +10,7 @@ import structlog
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.models import user
 from app.models.user import User
 from app.schemas.response import ApiResponse
 from app.schemas.notification import FamilyNotificationResponse, NotificationStats
@@ -31,8 +33,9 @@ async def get_my_notifications(
     获取我的通知列表
     """
     notification_repo = FamilyNotificationRepository(db)
+    user_id = int(current_user.id)  
     notifications = await notification_repo.get_user_notifications(
-        user_id=current_user.id,
+        user_id= user_id,
         unread_only=unread_only,
         limit=limit,
         offset=offset
@@ -60,13 +63,13 @@ async def get_notification_stats(
     获取通知统计信息
     """
     notification_repo = FamilyNotificationRepository(db)
-    
+    user_id = int(current_user.id)  
     all_notifications = await notification_repo.get_user_notifications(
-        user_id=current_user.id,
+        user_id=user_id,
         unread_only=False,
         limit=1000
     )
-    unread_count = await notification_repo.get_unread_count(current_user.id)
+    unread_count = await notification_repo.get_unread_count(user_id=user_id)
     
     return ApiResponse.success(data=NotificationStats(
         total_count=len(all_notifications),
@@ -85,14 +88,15 @@ async def mark_notification_as_read(
     """
     notification_repo = FamilyNotificationRepository(db)
     notification = await notification_repo.get_by_id(notification_id)
-    
+    user_id = int(current_user.id)  
+    receiver_id = int(notification.receiver_id) if notification else None 
     if not notification:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="通知不存在"
         )
     
-    if notification.receiver_id != current_user.id:
+    if receiver_id != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="无权操作此通知"
@@ -127,8 +131,9 @@ async def mark_all_as_read(
     """
     标记所有通知为已读
     """
+    user_id = int(current_user.id)  
     notification_repo = FamilyNotificationRepository(db)
-    count = await notification_repo.mark_all_as_read(current_user.id)
+    count = await notification_repo.mark_all_as_read(user_id=user_id)
     
     logger.info(
         "all_notifications_marked_read",
@@ -160,8 +165,10 @@ async def delete_notification(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="通知不存在"
         )
-    
-    if notification.receiver_id != current_user.id:
+    user_id = int(current_user.id)  
+    receiver_id = int(notification.receiver_id) if notification else None 
+
+    if receiver_id != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="无权删除此通知"
