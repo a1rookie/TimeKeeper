@@ -5,7 +5,7 @@ Reminder Template Model
 from typing import Optional, List, Dict, Any, TYPE_CHECKING
 from datetime import datetime
 from decimal import Decimal
-from sqlalchemy import String, Text, Boolean, Numeric, func
+from sqlalchemy import String, Text, Numeric, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import JSON
 from app.core.database import Base

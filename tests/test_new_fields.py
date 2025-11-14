@@ -36,7 +36,7 @@ def test_all_new_fields():
         "password": register_data["password"]
     }
     login_response = client.post("/api/v1/users/login", json=login_data)
-    print(f"\n✅ 用户登录:")
+    print("\n✅ 用户登录:")
     print(f"   状态码: {login_response.status_code}")
     if login_response.status_code != 200:
         print(f"   错误: {login_response.json()}")

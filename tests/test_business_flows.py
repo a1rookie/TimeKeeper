@@ -8,7 +8,6 @@ sys.path.insert(0, r"d:\pygithub\TimeKeeper\TimeKeeper")
 from fastapi.testclient import TestClient
 from main import app
 from datetime import datetime, timedelta
-import json
 
 client = TestClient(app)
 
@@ -77,7 +76,7 @@ def test_user_registration_authentication():
     
     me_data = me_response.json()
     print(f"✓ 当前用户ID: {me_data['id']}")
-    print(f"✓ 认证成功")
+    print("✓ 认证成功")
     
     print("\n✅ 流程1验证通过：用户注册与认证")
     return headers, user

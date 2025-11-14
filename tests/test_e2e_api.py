@@ -2,7 +2,6 @@
 测试用户注册、登录和提醒CRUD完整流程
 """
 import requests
-import json
 import sys
 import io
 
@@ -26,7 +25,7 @@ def test_e2e_flow():
     assert response.status_code == 200, f"登录失败: {response.text}"
     token_data = response.json()
     token = token_data["access_token"]
-    print(f"   ✅ 登录成功")
+    print("   ✅ 登录成功")
     print(f"   Token: {token[:50]}...")
     
     headers = {"Authorization": f"Bearer {token}"}
@@ -79,7 +78,7 @@ def test_e2e_flow():
     )
     assert response.status_code == 200, f"更新提醒失败: {response.text}"
     updated = response.json()
-    print(f"   ✅ 提醒更新成功")
+    print("   ✅ 提醒更新成功")
     print(f"   新标题: {updated['title']}")
     print(f"   新配置: {updated['recurrence_config']}")
     
@@ -87,25 +86,25 @@ def test_e2e_flow():
     print("\n6️⃣  测试权限隔离...")
     response = requests.get(f"{BASE_URL}/api/v1/reminders/99999", headers=headers)
     assert response.status_code == 404, "应该返回404"
-    print(f"   ✅ 权限隔离正常（无法访问他人数据）")
+    print("   ✅ 权限隔离正常（无法访问他人数据）")
     
     # 7. 删除提醒
     print("\n7️⃣  删除提醒...")
     response = requests.delete(f"{BASE_URL}/api/v1/reminders/{reminder_id}", headers=headers)
     assert response.status_code == 200, f"删除提醒失败: {response.text}"
-    print(f"   ✅ 提醒删除成功")
+    print("   ✅ 提醒删除成功")
     
     # 8. 验证删除
     print("\n8️⃣  验证删除...")
     response = requests.get(f"{BASE_URL}/api/v1/reminders/{reminder_id}", headers=headers)
     assert response.status_code == 404, "应该返回404"
-    print(f"   ✅ 确认已删除")
+    print("   ✅ 确认已删除")
     
     # 9. 测试未授权访问
     print("\n9️⃣  测试未授权访问...")
     response = requests.get(f"{BASE_URL}/api/v1/users/me")  # 无token
     assert response.status_code == 401, f"应该返回401: {response.status_code}"
-    print(f"   ✅ 未授权访问被拒绝")
+    print("   ✅ 未授权访问被拒绝")
     
     print("\n" + "="*60)
     print("✅ 所有测试通过！")

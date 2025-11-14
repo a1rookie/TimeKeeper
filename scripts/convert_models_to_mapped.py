@@ -14,7 +14,7 @@ def convert_model_file(file_path: Path):
     
     # 跳过已经转换过的文件
     if 'Mapped[' in content:
-        print(f"  ✓ Already converted")
+        print("  ✓ Already converted")
         return
     
     # 替换 import 语句
@@ -39,7 +39,7 @@ def convert_model_file(file_path: Path):
     content = convert_relationships(content)
     
     file_path.write_text(content, encoding='utf-8')
-    print(f"  ✓ Converted successfully")
+    print("  ✓ Converted successfully")
 
 def replace_imports(import_str: str) -> str:
     """替换 import 语句"""

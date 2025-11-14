@@ -11,7 +11,6 @@ import structlog
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.user import User
-from app.models.reminder_completion import CompletionStatus
 from app.schemas.response import ApiResponse
 
 logger = structlog.get_logger(__name__)

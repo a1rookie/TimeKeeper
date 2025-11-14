@@ -50,7 +50,7 @@ def check_token(token: str, label: str):
 
 def get_sessions(token: str):
     """Query active sessions"""
-    print(f"\nQuery sessions...")
+    print("\nQuery sessions...")
     response = requests.get(
         f"{BASE_URL}/users/sessions",
         headers={"Authorization": f"Bearer {token}"}

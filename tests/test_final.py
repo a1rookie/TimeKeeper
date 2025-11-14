@@ -57,25 +57,25 @@ def test_e2e():
     r = requests.put(f"{BASE_URL}/api/v1/reminders/{rid}", 
                     json={"title": "Updated Test"}, headers=headers)
     assert r.status_code == 200, f"Update failed: {r.status_code}"
-    print(f"    [OK] Updated reminder")
+    print("    [OK] Updated reminder")
     
     # 6. Test permission isolation
     print("\n[6] Testing permission isolation...")
     r = requests.get(f"{BASE_URL}/api/v1/reminders/99999", headers=headers)
     assert r.status_code == 404, f"Should be 404, got: {r.status_code}"
-    print(f"    [OK] Permission isolation working")
+    print("    [OK] Permission isolation working")
     
     # 7. Delete reminder
     print("\n[7] Testing delete reminder...")
     r = requests.delete(f"{BASE_URL}/api/v1/reminders/{rid}", headers=headers)
     assert r.status_code == 204, f"Delete failed: {r.status_code}"
-    print(f"    [OK] Deleted reminder")
+    print("    [OK] Deleted reminder")
     
     # 8. Verify deletion
     print("\n[8] Verifying deletion...")
     r = requests.get(f"{BASE_URL}/api/v1/reminders/{rid}", headers=headers)
     assert r.status_code == 404, f"Should be 404, got: {r.status_code}"
-    print(f"    [OK] Confirmed deletion")
+    print("    [OK] Confirmed deletion")
     
     # 9. Test unauthorized access
     print("\n[9] Testing unauthorized access...")

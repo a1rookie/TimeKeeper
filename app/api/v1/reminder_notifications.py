@@ -2,7 +2,6 @@
 Reminder Notification API
 提醒通知策略的 API 路由
 """
-from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 import structlog

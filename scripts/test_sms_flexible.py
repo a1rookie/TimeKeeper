@@ -19,7 +19,7 @@ def test_sms(phone: str):
     
     try:
         # 1. 生成验证码
-        print(f"\n[步骤1] 生成验证码...")
+        print("\n[步骤1] 生成验证码...")
         code, log_id = generate_and_store_code(
             phone=phone,
             purpose='register',
@@ -42,7 +42,7 @@ def test_sms(phone: str):
         template_code = settings.SMS_TEMPLATE_CODE or '100001'
         template_param = json.dumps({"code": code, "min": "5"})
         
-        print(f"\n   调用阿里云API...")
+        print("\n   调用阿里云API...")
         success = sms.send_sms(phone, sign_name, template_code, template_param)
         
         # 更新数据库状态
@@ -52,12 +52,12 @@ def test_sms(phone: str):
             update_sms_log_status(db, log_id, status, error_msg)
         
         if success:
-            print(f"\n✅ 短信发送成功!")
+            print("\n✅ 短信发送成功!")
             print(f"📱 验证码: {code}")
             print(f"⏰ 有效期: {settings.SMS_CODE_EXPIRE_SECONDS // 60} 分钟")
             return True
         else:
-            print(f"\n❌ 短信发送失败")
+            print("\n❌ 短信发送失败")
             return False
             
     except Exception as e:
@@ -74,7 +74,7 @@ if __name__ == "__main__":
     default_phone = '18738710275'  # 您示例代码中使用的号码
     phone = sys.argv[1] if len(sys.argv) > 1 else default_phone
     
-    print(f"\n🔐 TimeKeeper 短信验证码测试")
+    print("\n🔐 TimeKeeper 短信验证码测试")
     print(f"测试号码: {phone}")
     print(f"环境: {settings.SMS_PROVIDER}")
     

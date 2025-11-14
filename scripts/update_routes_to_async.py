@@ -89,10 +89,10 @@ def main():
         
         print(f"📝 处理: {filename}")
         if update_route_file(file_path):
-            print(f"   ✅ 已更新")
+            print("   ✅ 已更新")
             updated += 1
         else:
-            print(f"   ⊘ 无需更新")
+            print("   ⊘ 无需更新")
     
     print()
     print("=" * 60)

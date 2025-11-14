@@ -3,7 +3,7 @@ Push Log Repository
 推送日志数据访问层
 """
 from collections.abc import Sequence
-from typing import List, Optional
+from typing import Optional
 from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select

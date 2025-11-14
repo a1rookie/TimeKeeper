@@ -48,7 +48,7 @@ def test_complete_reminder(token, reminder_id=26):
     )
     if r.status_code == 200:
         result = r.json()
-        print(f"  ✅ 完成成功")
+        print("  ✅ 完成成功")
         print(f"  - 是否完成: {result['is_completed']}")
         print(f"  - 完成时间: {result.get('completed_at')}")
         print(f"  - 下次提醒: {result.get('next_remind_time')}")
@@ -82,7 +82,7 @@ def test_complete_reminder(token, reminder_id=26):
     )
     if r.status_code == 200:
         result = r.json()
-        print(f"  ✅ 取消成功")
+        print("  ✅ 取消成功")
         print(f"  - 是否完成: {result['is_completed']}")
     else:
         print(f"  ❌ 错误: {r.status_code} - {r.text}")

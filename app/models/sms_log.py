@@ -4,7 +4,7 @@ SMS Log Model
 """
 from typing import Optional
 from datetime import datetime
-from sqlalchemy import String, Boolean, Text, Index, func
+from sqlalchemy import String, Text, Index, func
 from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import Base
 

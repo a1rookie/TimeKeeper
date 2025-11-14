@@ -3,7 +3,6 @@ Family Notification Service
 家庭通知服务 - 处理家庭成员之间的通知
 """
 import json
-from typing import List, Optional
 import structlog
 
 from sqlalchemy.ext.asyncio import AsyncSession

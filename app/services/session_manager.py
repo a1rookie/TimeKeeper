@@ -4,7 +4,6 @@ Session Management Service
 """
 from typing import Optional, Literal
 from datetime import datetime, timedelta
-import uuid
 from redis import Redis
 from app.core.config import settings
 

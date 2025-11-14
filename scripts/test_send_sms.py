@@ -6,7 +6,6 @@
 注意：不会发送真实短信，除非你在 .env 中配置了阿里云密钥并安装了 aliyun sdk
 """
 from app.services.sms_service import generate_and_store_code, verify_code, get_sms_service
-from app.core.redis import get_redis
 from app.core.config import settings
 
 

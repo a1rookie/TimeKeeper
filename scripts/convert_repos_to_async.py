@@ -108,10 +108,10 @@ def main():
         
         print(f"📝 转换: {repo_file.name}")
         if convert_repository_to_async(repo_file):
-            print(f"   ✅ 已转换")
+            print("   ✅ 已转换")
             converted += 1
         else:
-            print(f"   ⊘ 无需转换")
+            print("   ⊘ 无需转换")
     
     print()
     print("=" * 60)

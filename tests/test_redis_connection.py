@@ -36,7 +36,7 @@ def test_redis_connection():
         print("\n[2] 测试SET/GET...")
         r.set('test_key', 'test_value')
         value = r.get('test_key')
-        print(f"    SET: test_key = test_value")
+        print("    SET: test_key = test_value")
         print(f"    GET: test_key = {value}")
         assert value == 'test_value', "SET/GET失败"
         print("    ✓ SET/GET成功")

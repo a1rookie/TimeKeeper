@@ -4,7 +4,7 @@ API 响应格式迁移验证脚本
 """
 import re
 from pathlib import Path
-from typing import List, Dict
+from typing import Dict
 
 def check_file(file_path: Path) -> Dict:
     """检查单个文件的迁移质量"""
@@ -85,13 +85,13 @@ def main():
         print(f"   ✓ 已迁移: {stats['migrated_endpoints']}")
         
         if stats['has_import']:
-            print(f"   ✓ 已导入 ApiResponse")
+            print("   ✓ 已导入 ApiResponse")
         
         if stats['issues']:
             for issue in stats['issues']:
                 print(f"   {issue}")
         else:
-            print(f"   ✅ 无问题")
+            print("   ✅ 无问题")
         
         print()
         

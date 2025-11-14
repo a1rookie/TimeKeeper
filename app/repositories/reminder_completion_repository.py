@@ -3,7 +3,7 @@ Reminder Completion Repository
 提醒完成记录数据访问层
 """
 
-from typing import List, Optional
+from typing import Optional
 from collections.abc import Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -32,7 +32,6 @@ class ReminderCompletionRepository:
         if scheduled_time:
             # 确保scheduled_time有时区信息
             if scheduled_time.tzinfo is None:
-                from app.core.config import settings
                 scheduled_time = scheduled_time.replace(tzinfo=timezone.utc)
             delay = int((now - scheduled_time).total_seconds() / 60)
         

@@ -2,7 +2,6 @@
 Template Like Repository
 模板点赞数据访问层
 """
-from typing import List, Optional
 from collections.abc import Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select

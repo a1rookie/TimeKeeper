@@ -5,7 +5,7 @@ Template Share Model
 import enum
 from typing import Optional, List, TYPE_CHECKING
 from datetime import datetime
-from sqlalchemy import String, Text, ForeignKey, Enum, Boolean, func
+from sqlalchemy import String, Text, ForeignKey, Enum, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
