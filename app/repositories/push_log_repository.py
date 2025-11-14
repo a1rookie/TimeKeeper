@@ -2,6 +2,7 @@
 Push Log Repository
 推送日志数据访问层
 """
+from collections.abc import Sequence
 from typing import List, Optional
 from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -43,24 +44,24 @@ class PushLogRepository:
         await self.db.refresh(log)
         return log
     
-    async def get_by_id(self, log_id: int) -> Optional[PushLog]:
+    async def get_by_id(self, log_id: int) -> PushLog | None:
         """根据ID查询日志"""
         result = await self.db.execute(select(PushLog).filter(PushLog.id == log_id))
         return result.scalar_one_or_none()
     
-    async def get_by_task(self, push_task_id: int) -> List[PushLog]:
+    async def get_by_task(self, push_task_id: int) -> Sequence[PushLog]:
         """查询推送任务的所有日志"""
         stmt = select(PushLog).where(
             PushLog.push_task_id == push_task_id
         ).order_by(PushLog.created_at)
         result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+        return result.scalars().all()
     
     async def get_failed_logs(
         self,
         hours: int = 24,
         limit: int = 100
-    ) -> List[PushLog]:
+    ) -> Sequence[PushLog]:
         """查询失败的推送日志"""
         since = datetime.utcnow() - timedelta(hours=hours)
         stmt = select(PushLog).where(
@@ -70,7 +71,7 @@ class PushLogRepository:
             )
         ).order_by(desc(PushLog.created_at)).limit(limit)
         result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+        return result.scalars().all()
     
     async def get_channel_stats(self, channel: str, days: int = 7) -> dict:
         """统计渠道推送效果"""
@@ -122,7 +123,7 @@ class PushLogRepository:
         log_id: int,
         user_action: str,
         response_time_seconds: int
-    ) -> Optional[PushLog]:
+    ) -> PushLog | None:
         """更新用户响应动作"""
         log = await self.get_by_id(log_id)
         if not log:

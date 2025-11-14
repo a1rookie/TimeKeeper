@@ -2,6 +2,7 @@
 Family Group Repository
 家庭组数据访问层
 """
+from collections.abc import Sequence
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -29,12 +30,12 @@ class FamilyGroupRepository:
         await self.db.refresh(group)
         return group
     
-    async def get_by_id(self, group_id: int) -> Optional[FamilyGroup]:
+    async def get_by_id(self, group_id: int) -> FamilyGroup | None:
         """根据ID查询家庭组"""
         result = await self.db.execute(select(FamilyGroup).filter(FamilyGroup.id == group_id))
         return result.scalar_one_or_none()
     
-    async def get_by_creator(self, creator_id: int) -> List[FamilyGroup]:
+    async def get_by_creator(self, creator_id: int) -> Sequence[FamilyGroup]:
         """查询用户创建的所有家庭组"""
         stmt = select(FamilyGroup).where(
             and_(
@@ -43,9 +44,9 @@ class FamilyGroupRepository:
             )
         )
         result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+        return result.scalars().all()
     
-    async def get_user_groups(self, user_id: int) -> List[FamilyGroup]:
+    async def get_user_groups(self, user_id: int) -> Sequence[FamilyGroup]:
         """查询用户所在的所有家庭组（包括创建和加入的）"""
         stmt = select(FamilyGroup).join(
             FamilyMember,
@@ -58,9 +59,9 @@ class FamilyGroupRepository:
             )
         )
         result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+        return result.scalars().all()
     
-    async def update(self, group_id: int, **kwargs) -> Optional[FamilyGroup]:
+    async def update(self, group_id: int, **kwargs) -> FamilyGroup | None:
         """更新家庭组信息"""
         group = await self.get_by_id(group_id)
         if not group:
