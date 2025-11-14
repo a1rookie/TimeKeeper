@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, desc, func
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.models.family_notification import FamilyNotification, NotificationType
 
@@ -92,7 +92,7 @@ class FamilyNotificationRepository:
             return False
         
         notification.is_read = True
-        notification.read_at = datetime.utcnow()
+        notification.read_at = datetime.now(timezone.utc)
         await self.db.commit()
         return True
     
@@ -111,7 +111,7 @@ class FamilyNotificationRepository:
         count = 0
         for notification in notifications:
             notification.is_read = True
-            notification.read_at = datetime.utcnow()
+            notification.read_at = datetime.now(timezone.utc)
             count += 1
         
         await self.db.commit()

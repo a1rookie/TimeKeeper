@@ -63,7 +63,7 @@ class PushScheduler:
             try:
                 # 查找需要推送的任务
                 now = datetime.now()
-                pending_tasks = await PushTaskRepository.get_pending_tasks(
+                pending_tasks = await PushTaskRepository.get_pending_tasks_static(
                     db=db,
                     before_time=now
                 )

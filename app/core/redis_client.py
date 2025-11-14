@@ -61,7 +61,8 @@ class RedisCache:
     
     def get(self, key: str) -> Optional[str]:
         """获取缓存"""
-        return self.client.get(self._make_key(key))
+        result = self.client.get(self._make_key(key))
+        return str(result) if result is not None else None
     
     def set(self, key: str, value: str, expire: Optional[int] = None) -> bool:
         """
@@ -72,31 +73,35 @@ class RedisCache:
             value: 缓存值
             expire: 过期时间（秒），None表示永不过期
         """
-        return self.client.set(self._make_key(key), value, ex=expire)
+        return bool(self.client.set(self._make_key(key), value, ex=expire))
     
     def delete(self, key: str) -> int:
         """删除缓存"""
-        return self.client.delete(self._make_key(key))
+        result = self.client.delete(self._make_key(key))
+        return int(result) if result is not None else 0  # type: ignore
     
     def exists(self, key: str) -> bool:
         """检查key是否存在"""
-        return self.client.exists(self._make_key(key)) > 0
+        return bool(self.client.exists(self._make_key(key)))
     
     def expire(self, key: str, seconds: int) -> bool:
         """设置过期时间"""
-        return self.client.expire(self._make_key(key), seconds)
+        return bool(self.client.expire(self._make_key(key), seconds))
     
     def ttl(self, key: str) -> int:
         """获取剩余过期时间（秒）"""
-        return self.client.ttl(self._make_key(key))
+        result = self.client.ttl(self._make_key(key))
+        return int(result) if result is not None else -2  # type: ignore
     
     def incr(self, key: str, amount: int = 1) -> int:
         """自增"""
-        return self.client.incr(self._make_key(key), amount)
+        result = self.client.incr(self._make_key(key), amount)
+        return int(result) if result is not None else 0  # type: ignore
     
     def decr(self, key: str, amount: int = 1) -> int:
         """自减"""
-        return self.client.decr(self._make_key(key), amount)
+        result = self.client.decr(self._make_key(key), amount)
+        return int(result) if result is not None else 0  # type: ignore
 
 
 # 预定义的缓存实例

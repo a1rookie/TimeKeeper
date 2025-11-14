@@ -2,7 +2,7 @@
 Database Configuration
 数据库连接配置 - 异步版本
 """
-
+from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from app.core.config import settings
@@ -34,7 +34,7 @@ async_session_maker = async_sessionmaker(
 Base = declarative_base()
 
 
-async def get_db() -> AsyncSession:
+async def get_db()  -> AsyncGenerator[AsyncSession, None]:
     """
     Async database dependency for FastAPI
     获取异步数据库会话

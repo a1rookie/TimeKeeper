@@ -20,7 +20,7 @@ class JPushClient:
     
     BASE_URL = "https://api.jpush.cn/v3"
     
-    def __init__(self, app_key: str = None, master_secret: str = None):
+    def __init__(self, app_key: str | None = None, master_secret: str | None = None):
         """
         初始化极光推送客户端
         
@@ -33,8 +33,9 @@ class JPushClient:
         
         if not self.app_key or not self.master_secret:
             logger.warning("JPush credentials not configured")
-        
-        self.auth = (self.app_key, self.master_secret)
+            self.auth = None  # 关键修复：无认证
+        else:
+            self.auth = (self.app_key, self.master_secret)
     
     def push_to_user(
         self,
