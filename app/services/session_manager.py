@@ -53,9 +53,9 @@ class SessionManager:
         # 获取旧会话
         old_jti = None
         if kick_previous:
-            old_jti = self.redis.get(session_key)
-            if old_jti:
-                old_jti = old_jti.decode('utf-8') if isinstance(old_jti, bytes) else old_jti
+            old_jti_raw = self.redis.get(session_key)
+            if old_jti_raw:
+                old_jti = old_jti_raw.decode('utf-8') if isinstance(old_jti_raw, bytes) else str(old_jti_raw)
                 # 将旧token加入黑名单
                 self._add_to_blacklist(old_jti, f"被新登录踢出 - 设备类型: {device_type}")
         
@@ -80,7 +80,7 @@ class SessionManager:
     def is_token_blacklisted(self, jti: str) -> bool:
         """检查token是否在黑名单中"""
         blacklist_key = self._get_blacklist_key(jti)
-        return self.redis.exists(blacklist_key) > 0
+        return bool(self.redis.exists(blacklist_key))
     
     def is_active_session(self, user_id: int, device_type: DeviceType, jti: str) -> bool:
         """
@@ -118,10 +118,10 @@ class SessionManager:
             是否成功撤销
         """
         session_key = self._get_session_key(user_id, device_type)
-        jti = self.redis.get(session_key)
+        jti_raw = self.redis.get(session_key)
         
-        if jti:
-            jti = jti.decode('utf-8') if isinstance(jti, bytes) else jti
+        if jti_raw:
+            jti = jti_raw.decode('utf-8') if isinstance(jti_raw, bytes) else str(jti_raw)
             # 加入黑名单
             self._add_to_blacklist(jti, "用户主动登出")
             # 删除会话
@@ -164,12 +164,14 @@ class SessionManager:
         
         for device_type in device_types:
             session_key = self._get_session_key(user_id, device_type)
-            jti = self.redis.get(session_key)
+            jti_raw = self.redis.get(session_key)
             
-            if jti:
-                ttl = self.redis.ttl(session_key)
+            if jti_raw:
+                jti = jti_raw.decode('utf-8') if isinstance(jti_raw, bytes) else str(jti_raw)
+                ttl_raw = self.redis.ttl(session_key)  # type: ignore
+                ttl = int(ttl_raw) if ttl_raw is not None else 0  # type: ignore
                 active_sessions[device_type] = {
-                    "jti": jti.decode('utf-8') if isinstance(jti, bytes) else jti,
+                    "jti": jti,
                     "expires_in_seconds": ttl,
                     "last_activity": datetime.utcnow() - timedelta(seconds=self.session_ttl - ttl)
                 }

@@ -4,7 +4,7 @@ Push Log Repository
 """
 from collections.abc import Sequence
 from typing import Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy import and_, desc
@@ -63,7 +63,7 @@ class PushLogRepository:
         limit: int = 100
     ) -> Sequence[PushLog]:
         """查询失败的推送日志"""
-        since = datetime.utcnow() - timedelta(hours=hours)
+        since = datetime.now(timezone.utc) - timedelta(hours=hours)
         stmt = select(PushLog).where(
             and_(
                 PushLog.status == "failed",
@@ -76,7 +76,7 @@ class PushLogRepository:
     async def get_channel_stats(self, channel: str, days: int = 7) -> dict:
         """统计渠道推送效果"""
         from sqlalchemy import func
-        since = datetime.utcnow() - timedelta(days=days)
+        since = datetime.now(timezone.utc) - timedelta(days=days)
         
         # 统计总数
         stmt_total = select(func.count()).select_from(PushLog).where(

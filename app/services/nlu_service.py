@@ -159,12 +159,19 @@ class DeepSeekNLU:
                 
                 return parsed_data
                 
-        except httpx.HTTPError as e:
+        except httpx.HTTPStatusError as e:  # 有 response 的异常
             logger.error(
-                "deepseek_nlu_http_error",
+                "deepseek_nlu_http_error", 
                 error=str(e),
-                status_code=getattr(e.response, "status_code", None) if hasattr(e, "response") else None,
+                status_code=e.response.status_code,  # 类型安全
                 event="nlu_http_error"
+            )
+            raise NLUError(f"DeepSeek API 请求失败: {str(e)}")
+        except httpx.RequestError as e:  # 网络层异常，无 response
+            logger.error(
+                "deepseek_nlu_request_error",
+                error=str(e), 
+                event="nlu_request_error"
             )
             raise NLUError(f"DeepSeek API 请求失败: {str(e)}")
         except json.JSONDecodeError as e:

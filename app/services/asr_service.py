@@ -33,6 +33,8 @@ class XFYunASR:
     
     def _generate_signature(self, ts: str) -> str:
         """生成签名"""
+        if not self.api_key or not self.api_secret:
+            raise ASRError("科大讯飞API Key或Secret未配置")
         base_string = self.api_key + ts
         md5 = hashlib.md5(base_string.encode()).hexdigest()
         signature = hmac.new(
@@ -121,7 +123,7 @@ class BaiduASR:
         self._access_token: Optional[str] = None
         self._token_expires_at: Optional[datetime] = None
     
-    async def _get_access_token(self) -> str:
+    async def _get_access_token(self) -> str | None:
         """获取access token（带缓存）"""
         if self._access_token and self._token_expires_at:
             if datetime.now() < self._token_expires_at:
