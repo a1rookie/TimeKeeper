@@ -61,7 +61,7 @@ async def create_reminder(
     
     # 使用Repository创建提醒
     new_reminder = await reminder_repo.create(
-        user_id=current_user.id,
+        user_id=current_user.id, 
         title=reminder_data.title,
         description=reminder_data.description,
         category=reminder_data.category,
@@ -75,9 +75,6 @@ async def create_reminder(
         location=reminder_data.location,
         attachments=reminder_data.attachments
     )
-    
-    # 自动创建推送任务
-    await create_push_task_for_reminder(db, new_reminder)
     
     logger.info(
         "reminder_created",
@@ -106,7 +103,7 @@ async def get_reminders(
         ApiResponse[List[ReminderResponse]]: 统一响应格式，data 为提醒列表
     """
     reminders = await reminder_repo.get_user_reminders(
-        user_id=current_user.id,
+        user_id=current_user.id, 
         skip=skip,
         limit=limit,
         is_active=is_active
@@ -127,7 +124,7 @@ async def get_reminder(
     Returns:
         ApiResponse[ReminderResponse]: 统一响应格式，data 为提醒详情
     """
-    reminder = await reminder_repo.get_by_id(reminder_id, current_user.id)
+    reminder = await reminder_repo.get_by_id(reminder_id, current_user.id) 
     
     if not reminder:
         raise HTTPException(
@@ -152,7 +149,7 @@ async def update_reminder(
     Returns:
         ApiResponse[ReminderResponse]: 统一响应格式，data 为更新后的提醒
     """
-    reminder = await reminder_repo.get_by_id(reminder_id, current_user.id)
+    reminder = await reminder_repo.get_by_id(reminder_id, current_user.id) 
     
     if not reminder:
         logger.warning(
@@ -201,7 +198,7 @@ async def delete_reminder(
     Returns:
         ApiResponse[None]: 统一响应格式，data 为空
     """
-    reminder = await reminder_repo.get_by_id(reminder_id, current_user.id)
+    reminder = await reminder_repo.get_by_id(reminder_id, current_user.id) 
     
     if not reminder:
         logger.warning(
@@ -258,7 +255,7 @@ async def complete_reminder(
         ApiResponse[ReminderResponse]: 统一响应格式，data 为更新后的提醒
     """
     # 1. 获取提醒
-    reminder = await reminder_repo.get_by_id(reminder_id, current_user.id)
+    reminder = await reminder_repo.get_by_id(reminder_id, current_user.id) 
     if not reminder:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -266,36 +263,36 @@ async def complete_reminder(
         )
     
     # 2. 标记完成
-    reminder = await reminder_repo.mark_completed(reminder, current_user.id)
+    reminder = await reminder_repo.mark_completed(reminder, current_user.id) 
     
     # 3. 记录完成记录
     note = completion_data.note if completion_data else None
     await completion_repo.create(
-        reminder_id=reminder.id,
-        user_id=current_user.id,
-        scheduled_time=reminder.next_remind_time,
+        reminder_id=reminder.id, 
+        user_id=current_user.id, 
+        scheduled_time=reminder.next_remind_time, 
         note=note,
         status="completed"
     )
     
     # 4. 如果是周期性提醒，计算下次提醒时间
-    if reminder.recurrence_type != "once":
+    if reminder.recurrence_type != "once": 
         next_time = calculate_next_occurrence(
-            reminder.next_remind_time,
-            reminder.recurrence_type,
-            reminder.recurrence_config
+            reminder.next_remind_time, 
+            reminder.recurrence_type, 
+            reminder.recurrence_config 
         )
         
         # 更新下次提醒时间，并重置完成状态
-        reminder.next_remind_time = next_time
-        reminder.last_remind_time = reminder.completed_at
-        reminder.is_completed = False
-        reminder.completed_at = None
+        reminder.next_remind_time = next_time 
+        reminder.last_remind_time = reminder.completed_at 
+        reminder.is_completed = False 
+        reminder.completed_at = None 
         await db.commit()
         await db.refresh(reminder)
         
         # 5. 创建新的推送任务
-        await create_push_task_for_reminder(db, reminder)
+        await create_push_task_for_reminder(db, reminder) 
     
     return ApiResponse.success(data=reminder, message="已标记为完成")
 
@@ -315,7 +312,7 @@ async def uncomplete_reminder(
         ApiResponse[ReminderResponse]: 统一响应格式，data 为更新后的提醒
     """
     # 1. 获取提醒
-    reminder = await reminder_repo.get_by_id(reminder_id, current_user.id)
+    reminder = await reminder_repo.get_by_id(reminder_id, current_user.id) 
     if not reminder:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -348,7 +345,7 @@ async def get_reminder_completions(
         ApiResponse[List[ReminderCompletionResponse]]: 统一响应格式，data 为完成记录列表
     """
     # 验证提醒所有权
-    reminder = await reminder_repo.get_by_id(reminder_id, current_user.id)
+    reminder = await reminder_repo.get_by_id(reminder_id, current_user.id) 
     if not reminder:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -366,6 +363,7 @@ async def create_voice_reminder(
     user_id: Optional[int] = Form(None, description="用户ID（可选，从token获取）"),
     family_id: Optional[int] = Form(None, description="家庭ID（可选）"),
     current_user: User = Depends(get_current_active_user),
+    reminder_repo: ReminderRepository = Depends(get_reminder_repository),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -456,8 +454,6 @@ async def create_voice_reminder(
         
         # 3. 构建 ReminderCreate 对象
         reminder_data = ReminderCreate(
-            user_id=user_id or current_user.id,
-            family_id=family_id,
             title=parsed_intent["title"],
             description=parsed_intent.get("description"),
             category=parsed_intent.get("category", "other"),
@@ -465,15 +461,28 @@ async def create_voice_reminder(
             recurrence_config=parsed_intent.get("recurrence_config", {}),
             first_remind_time=parsed_intent["first_remind_time"],
             advance_minutes=parsed_intent.get("advance_minutes", 0),
-            priority=parsed_intent.get("priority", "normal")
+            priority=parsed_intent.get("priority", 1),
+            amount=parsed_intent.get("amount"),
+            location=parsed_intent.get("location"),
+            attachments=parsed_intent.get("attachments")
         )
         
-        # 4. 创建提醒（复用现有逻辑）
-        reminder_repo = get_reminder_repository(db)
-        new_reminder = await reminder_repo.create(reminder_data)
-        
-        # 5. 创建推送任务
-        await create_push_task_for_reminder(db, new_reminder)
+        # 4. 创建提醒（使用依赖注入的 reminder_repo）
+        new_reminder = await reminder_repo.create(
+            user_id=int(user_id) if user_id else int(current_user.id),  
+            title=reminder_data.title,
+            description=reminder_data.description,
+            category=reminder_data.category,
+            first_remind_time=reminder_data.first_remind_time,
+            recurrence_type=reminder_data.recurrence_type,
+            recurrence_config=reminder_data.recurrence_config,
+            remind_channels=reminder_data.remind_channels,
+            advance_minutes=reminder_data.advance_minutes,
+            priority=reminder_data.priority,
+            amount=reminder_data.amount,
+            location=reminder_data.location,
+            attachments=reminder_data.attachments
+        )
         
         logger.info(
             "voice_reminder_created",
@@ -509,6 +518,7 @@ async def create_voice_reminder(
 async def create_quick_reminder(
     quick_data: QuickReminderCreate,
     current_user: User = Depends(get_current_active_user),
+    reminder_repo: ReminderRepository = Depends(get_reminder_repository),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -584,20 +594,19 @@ async def create_quick_reminder(
                 )
             
             # 验证权限（仅创建者或家庭成员可使用）
-            if template.user_id != current_user.id:
+            template_user_id = int(template.user_id)  
+            user_id = int(current_user.id)  
+            if template_user_id != user_id:
                 # 检查是否为共享模板
                 from app.repositories.template_share_repository import TemplateShareRepository
                 share_repo = TemplateShareRepository(db)
-                can_use = await share_repo.can_user_access_template(template_id, current_user.id)
+                can_use = await share_repo.can_user_access_template(template_id, user_id)
                 
                 if not can_use:
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
                         detail="无权使用此模板"
                     )
-            
-            # 增加使用次数
-            await custom_template_repo.increment_usage(template_id)
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -622,48 +631,55 @@ async def create_quick_reminder(
                 detail="必须提供 first_remind_time（首次提醒时间）"
             )
         
+        from app.models.reminder import ReminderCategory
+        
+        template_name = str(template.name)  
+        template_desc = str(template.description) if hasattr(template, 'description') and template.description else None  
+        template_category_str = str(template.category)  
+        template_category = ReminderCategory(template_category_str)
+        
         reminder_data = ReminderCreate(
-            user_id=current_user.id,
-            family_id=custom_data.get("family_id"),
-            title=custom_data.get("title", template.name),
-            description=custom_data.get("description", template.description),
-            category=template.category if template_type == "system" else template.category,
+            title=custom_data.get("title", template_name),
+            description=custom_data.get("description", template_desc),
+            category=template_category,
             recurrence_type=custom_data.get(
                 "recurrence_type",
-                template.default_recurrence_type if hasattr(template, "default_recurrence_type") else "once"
+                getattr(template, "default_recurrence_type", "once")
             ),
             recurrence_config=custom_data.get(
                 "recurrence_config",
-                template.default_recurrence_config if hasattr(template, "default_recurrence_config") else {}
+                getattr(template, "default_recurrence_config", {})
             ),
             first_remind_time=custom_data["first_remind_time"],
             advance_minutes=custom_data.get(
                 "advance_minutes",
-                template.default_remind_advance_days * 24 * 60 if hasattr(template, "default_remind_advance_days") else 0
+                getattr(template, "default_remind_advance_days", 0) * 24 * 60
             ),
-            priority=custom_data.get("priority", "normal"),
-            remind_channels=custom_data.get("remind_channels", ["app"])
+            priority=custom_data.get("priority", 1),
+            remind_channels=custom_data.get("remind_channels", ["app"]),
+            amount=custom_data.get("amount"),
+            location=custom_data.get("location"),
+            attachments=custom_data.get("attachments")
         )
         
-        # 创建提醒
-        reminder_repo = get_reminder_repository(db)
-        new_reminder = await reminder_repo.create(reminder_data)
+        # 创建提醒（使用依赖注入的 reminder_repo）
+        user_id = int(current_user.id)  
         
-        # 创建推送任务
-        await create_push_task_for_reminder(db, new_reminder)
-        
-        # 记录模板使用
-        from app.repositories.template_usage_record_repository import TemplateUsageRecordRepository
-        from app.schemas.template import TemplateUsageCreate
-        
-        usage_repo = TemplateUsageRecordRepository(db)
-        usage_data = TemplateUsageCreate(
-            user_id=current_user.id,
-            template_id=template_id if template_type == "system" else None,
-            custom_template_id=template_id if template_type == "custom" else None,
-            reminder_id=new_reminder.id
+        new_reminder = await reminder_repo.create(
+            user_id=user_id,
+            title=reminder_data.title,
+            description=reminder_data.description,
+            category=reminder_data.category,
+            first_remind_time=reminder_data.first_remind_time,
+            recurrence_type=reminder_data.recurrence_type,
+            recurrence_config=reminder_data.recurrence_config,
+            remind_channels=reminder_data.remind_channels,
+            advance_minutes=reminder_data.advance_minutes,
+            priority=reminder_data.priority,
+            amount=reminder_data.amount,
+            location=reminder_data.location,
+            attachments=reminder_data.attachments
         )
-        await usage_repo.create(usage_data)
         
         logger.info(
             "quick_reminder_created",

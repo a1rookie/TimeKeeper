@@ -20,7 +20,7 @@ class ReminderCompletionResponse(BaseModel):
     id: int
     reminder_id: int
     user_id: int
-    scheduled_time: datetime
+    scheduled_time: datetime | None = None
     completed_time: datetime
     status: CompletionStatus
     delay_minutes: Optional[int]

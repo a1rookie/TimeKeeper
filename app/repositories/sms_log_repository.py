@@ -44,76 +44,102 @@ class SmsLogRepository:
     
     async def update_status(self, log_id: int, status: str, error_message: Optional[str] = None):
         """更新发送状态"""
-        log = self.db.query(SmsLog).filter(SmsLog.id == log_id).first()
-        if log:
-            log.status = status
-            log.sent_at = func.now()
-            if error_message:
-                log.error_message = error_message
-            await self.db.commit()
+        from sqlalchemy import update as sql_update
+        now = datetime.now()
+        update_data = {"status": status, "sent_at": now}
+        if error_message:
+            update_data["error_message"] = error_message
+        
+        stmt = sql_update(SmsLog).where(SmsLog.id == log_id).values(**update_data)
+        await self.db.execute(stmt)
+        await self.db.commit()
     
     async def mark_verified(self, log_id: int):
         """标记为已验证"""
-        log = self.db.query(SmsLog).filter(SmsLog.id == log_id).first()
-        if log:
-            log.is_verified = True
-            log.verified_at = func.now()
-            await self.db.commit()
+        from sqlalchemy import update as sql_update
+        now = datetime.now()
+        stmt = sql_update(SmsLog).where(SmsLog.id == log_id).values(
+            is_verified=True,
+            verified_at=now
+        )
+        await self.db.execute(stmt)
+        await self.db.commit()
     
     async def increment_verify_attempts(self, phone: str, purpose: str) -> int:
         """增加验证尝试次数（返回最新的未过期记录的尝试次数）"""
-        log = self.db.query(SmsLog).filter(
+        from sqlalchemy import update as sql_update
+        now = datetime.now()
+        stmt = select(SmsLog).where(
             SmsLog.phone == phone,
             SmsLog.purpose == purpose,
             SmsLog.is_verified == False,
-            SmsLog.expires_at > func.now()
-        ).order_by(SmsLog.created_at.desc()).first()
+            SmsLog.expires_at > now
+        ).order_by(SmsLog.created_at.desc()).limit(1)
+        result = await self.db.execute(stmt)
+        log = result.scalar_one_or_none()
         
         if log:
-            log.verify_attempts += 1
+            log_id = int(log.id)  # type: ignore
+            update_stmt = sql_update(SmsLog).where(SmsLog.id == log_id).values(
+                verify_attempts=SmsLog.verify_attempts + 1
+            )
+            await self.db.execute(update_stmt)
             await self.db.commit()
-            return log.verify_attempts
+            # 重新查询以获取更新后的值
+            result = await self.db.execute(select(SmsLog).where(SmsLog.id == log_id))
+            updated_log = result.scalar_one_or_none()
+            return int(updated_log.verify_attempts) if updated_log else 0  # type: ignore
         return 0
     
     async def count_by_phone_today(self, phone: str, purpose: Optional[str] = None) -> int:
         """统计手机号今日发送次数"""
         today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        query = self.db.query(SmsLog).filter(
+        stmt = select(func.count()).select_from(SmsLog).where(
             SmsLog.phone == phone,
             SmsLog.created_at >= today_start
         )
         if purpose:
-            query = query.filter(SmsLog.purpose == purpose)
-        return query.count()
+            stmt = stmt.where(SmsLog.purpose == purpose)
+        result = await self.db.execute(stmt)
+        return result.scalar() or 0
     
     async def count_by_ip_today(self, ip_address: str) -> int:
         """统计IP今日发送次数"""
         today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        return self.db.query(SmsLog).filter(
+        stmt = select(func.count()).select_from(SmsLog).where(
             SmsLog.ip_address == ip_address,
             SmsLog.created_at >= today_start
-        ).count()
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar() or 0
     
     async def count_recent(self, phone: str, purpose: str, minutes: int = 1) -> int:
         """统计最近N分钟内的发送次数"""
         time_threshold = datetime.now() - timedelta(minutes=minutes)
-        return self.db.query(SmsLog).filter(
+        stmt = select(func.count()).select_from(SmsLog).where(
             SmsLog.phone == phone,
             SmsLog.purpose == purpose,
             SmsLog.created_at >= time_threshold
-        ).count()
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar() or 0
     
     async def get_latest_unverified(self, phone: str, purpose: str) -> Optional[SmsLog]:
         """获取最新的未验证记录"""
-        return self.db.query(SmsLog).filter(
+        now = datetime.now()
+        stmt = select(SmsLog).where(
             SmsLog.phone == phone,
             SmsLog.purpose == purpose,
             SmsLog.is_verified == False,
-            SmsLog.expires_at > func.now()
-        ).order_by(SmsLog.created_at.desc()).first()
+            SmsLog.expires_at > now
+        ).order_by(SmsLog.created_at.desc()).limit(1)
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
     
     async def cleanup_expired(self, days: int = 30):
         """清理过期日志（保留30天）"""
+        from sqlalchemy import delete
         threshold = datetime.now() - timedelta(days=days)
-        self.db.query(SmsLog).filter(SmsLog.created_at < threshold).delete()
+        stmt = delete(SmsLog).where(SmsLog.created_at < threshold)
+        await self.db.execute(stmt)
         await self.db.commit()

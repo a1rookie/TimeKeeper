@@ -43,24 +43,30 @@ class TemplateUsageRecordRepository:
     
     async def get_by_share(self, template_share_id: int) -> List[TemplateUsageRecord]:
         """查询模板分享的所有使用记录"""
-        return self.db.query(TemplateUsageRecord).filter(
+        stmt = select(TemplateUsageRecord).where(
             TemplateUsageRecord.template_share_id == template_share_id
-        ).order_by(desc(TemplateUsageRecord.used_at)).all()
+        ).order_by(desc(TemplateUsageRecord.used_at))
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
     
     async def get_by_user(self, user_id: int) -> List[TemplateUsageRecord]:
         """查询用户的使用记录"""
-        return self.db.query(TemplateUsageRecord).filter(
+        stmt = select(TemplateUsageRecord).where(
             TemplateUsageRecord.user_id == user_id
-        ).order_by(desc(TemplateUsageRecord.used_at)).all()
+        ).order_by(desc(TemplateUsageRecord.used_at))
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
     
     async def check_existing(self, template_share_id: int, user_id: int) -> Optional[TemplateUsageRecord]:
         """检查用户是否已使用过该模板"""
-        return self.db.query(TemplateUsageRecord).filter(
+        stmt = select(TemplateUsageRecord).where(
             and_(
                 TemplateUsageRecord.template_share_id == template_share_id,
                 TemplateUsageRecord.user_id == user_id
             )
-        ).first()
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
     
     async def update_feedback(
         self,
@@ -69,7 +75,7 @@ class TemplateUsageRecordRepository:
         feedback_comment: Optional[str] = None
     ) -> Optional[TemplateUsageRecord]:
         """更新反馈"""
-        record = self.get_by_id(record_id)
+        record = await self.get_by_id(record_id)
         if not record:
             return None
         
@@ -86,13 +92,15 @@ class TemplateUsageRecordRepository:
         """计算模板的平均评分"""
         from sqlalchemy import func
         
-        result = self.db.query(
+        stmt = select(
             func.avg(TemplateUsageRecord.feedback_rating)
-        ).filter(
+        ).where(
             and_(
                 TemplateUsageRecord.template_share_id == template_share_id,
                 TemplateUsageRecord.feedback_rating.isnot(None)
             )
-        ).scalar()
+        )
+        result = await self.db.execute(stmt)
+        avg_value = result.scalar()
         
-        return round(float(result), 2) if result else 0.0
+        return round(float(avg_value), 2) if avg_value else 0.0

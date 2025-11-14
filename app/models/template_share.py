@@ -3,10 +3,17 @@ Template Share Model
 模板分享模型
 """
 import enum
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Enum, Boolean
-from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
+from typing import Optional, List, TYPE_CHECKING
+from datetime import datetime
+from sqlalchemy import String, Text, ForeignKey, Enum, Boolean, func
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
+
+if TYPE_CHECKING:
+    from app.models.user import User
+    from app.models.user_custom_template import UserCustomTemplate
+    from app.models.template_usage_record import TemplateUsageRecord
+    from app.models.template_like import TemplateLike
 
 
 class ShareType(str, enum.Enum):
@@ -20,22 +27,22 @@ class TemplateShare(Base):
     """模板分享表"""
     __tablename__ = "template_shares"
     
-    id = Column(Integer, primary_key=True, index=True, comment="分享ID")
-    template_id = Column(Integer, ForeignKey("user_custom_templates.id"), comment="用户模板ID")
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, comment="分享者ID")
-    share_type = Column(Enum(ShareType), nullable=False, index=True, comment="分享类型")
-    family_group_id = Column(Integer, ForeignKey("family_groups.id"), comment="家庭组ID（仅家庭分享）")
-    share_code = Column(String(10), unique=True, nullable=False, index=True, comment="分享码")
-    share_title = Column(String(200), comment="分享标题")
-    share_description = Column(Text, comment="分享描述")
-    usage_count = Column(Integer, default=0, comment="使用次数")
-    like_count = Column(Integer, default=0, comment="点赞数")
-    is_active = Column(Boolean, default=True, comment="是否有效")
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), comment="创建时间")
-    expires_at = Column(DateTime(timezone=True), comment="过期时间")
+    id: Mapped[int] = mapped_column(primary_key=True, index=True, comment="分享ID")
+    template_id: Mapped[int] = mapped_column(ForeignKey("user_custom_templates.id"), comment="用户模板ID")
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), comment="分享者ID")
+    share_type: Mapped[ShareType] = mapped_column(Enum(ShareType), index=True, comment="分享类型")
+    family_group_id: Mapped[Optional[int]] = mapped_column(ForeignKey("family_groups.id"), nullable=True, comment="家庭组ID（仅家庭分享）")
+    share_code: Mapped[str] = mapped_column(String(10), unique=True, index=True, comment="分享码")
+    share_title: Mapped[Optional[str]] = mapped_column(String(200), nullable=True, comment="分享标题")
+    share_description: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="分享描述")
+    usage_count: Mapped[int] = mapped_column(default=0, comment="使用次数")
+    like_count: Mapped[int] = mapped_column(default=0, comment="点赞数")
+    is_active: Mapped[bool] = mapped_column(default=True, comment="是否有效")
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now(), comment="创建时间")
+    expires_at: Mapped[Optional[datetime]] = mapped_column(nullable=True, comment="过期时间")
     
     # Relationships
-    user = relationship("User", back_populates="template_shares")
-    template = relationship("UserCustomTemplate", back_populates="shares")
-    usage_records = relationship("TemplateUsageRecord", back_populates="template_share", cascade="all, delete-orphan")
-    likes = relationship("TemplateLike", back_populates="template_share", cascade="all, delete-orphan")
+    user: Mapped["User"] = relationship(back_populates="template_shares")
+    template: Mapped["UserCustomTemplate"] = relationship(back_populates="shares")
+    usage_records: Mapped[List["TemplateUsageRecord"]] = relationship(back_populates="template_share", cascade="all, delete-orphan")
+    likes: Mapped[List["TemplateLike"]] = relationship(back_populates="template_share", cascade="all, delete-orphan")

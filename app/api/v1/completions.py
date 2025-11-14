@@ -47,23 +47,32 @@ async def complete_reminder(
     recurrence_service = RecurrenceService()
     
     # 检查提醒是否存在
-    reminder = await reminder_repo.get_by_id(data.reminder_id)
+    user_id = int(current_user.id)
+    reminder = await reminder_repo.get_by_id(data.reminder_id, user_id)
+    
+    # 如果不是所有者，尝试通过family查找
     if not reminder:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="提醒不存在"
-        )
+        # 尝试查询所有提醒（不限制user_id）来检查family权限
+        reminder = await reminder_repo.get_by_id_without_user_check(data.reminder_id)
+        
+        if not reminder:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="提醒不存在"
+            )
     
     # 检查权限
     can_complete = False
     
     # 1. 是否为提醒所有者
-    if reminder.user_id == current_user.id:
+    if int(reminder.user_id) == user_id:
         can_complete = True
     
     # 2. 如果是家庭共享提醒，检查是否为家庭成员
-    if not can_complete and reminder.family_group_id:
-        if await family_member_repo.is_member(reminder.family_group_id, current_user.id):
+    family_group_id_val = int(reminder.family_group_id) if reminder.family_group_id else None  
+    if not can_complete and family_group_id_val:
+        family_group_id = int(family_group_id_val)
+        if await family_member_repo.is_member(family_group_id, user_id):
             can_complete = True
     
     if not can_complete:
@@ -72,11 +81,13 @@ async def complete_reminder(
             detail="无权完成该提醒"
         )
     
-    # 检查是否已经记录了该时间点的完成
-    existing = completion_repo.check_recent_completion(
-        data.reminder_id,
-        data.scheduled_time
+    # 检查是否已经记录了该时间点的完成（简化检查，查询最近的完成记录）
+    existing = await completion_repo.check_recent_completion(
+        reminder_id=data.reminder_id,
+        scheduled_time=data.scheduled_time,
+        time_window_hours=1
     )
+    
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -86,61 +97,70 @@ async def complete_reminder(
     # 创建完成记录
     completion = await completion_repo.create(
         reminder_id=data.reminder_id,
-        user_id=current_user.id,
+        user_id=user_id,
         scheduled_time=data.scheduled_time,
-        status=data.status
+        status=data.status.value if hasattr(data.status, 'value') else str(data.status)
     )
     
     # 如果是周期性提醒，计算下次提醒时间
-    if reminder.recurrence_type and reminder.recurrence_type != 'once':
+    recurrence_type_val = str(reminder.recurrence_type) if reminder.recurrence_type else None  
+    if recurrence_type_val and recurrence_type_val != 'once':
+        recurrence_config_val = reminder.recurrence_config or {}
         next_time = recurrence_service.calculate_next_time(
-            recurrence_type=reminder.recurrence_type,
-            recurrence_config=reminder.recurrence_config,
+            recurrence_type=recurrence_type_val,
+            recurrence_config=recurrence_config_val,
             current_time=data.scheduled_time
         )
         
         if next_time:
             # 更新下次提醒时间
-            reminder_repo.update(
-                reminder_id=reminder.id,
+            await reminder_repo.update(
+                reminder=reminder,
                 next_remind_time=next_time
             )
             
             # 创建新的推送任务
-            from app.services.push_task_service import create_push_task_for_reminder
-            await create_push_task_for_reminder(db, reminder)
+            from app.services.push_scheduler import create_push_task_for_reminder
+            reminder_id = int(reminder.id)  
+            reminder_user_id = int(reminder.user_id)  
+            await create_push_task_for_reminder(db, reminder_id, reminder_user_id, next_time)
     
     # 如果是家庭共享提醒，通知其他家庭成员
-    if reminder.family_group_id:
+    family_group_id_val = int(reminder.family_group_id) if reminder.family_group_id else None  
+    if family_group_id_val:
         from app.services.family_notification_service import get_notification_service
         
         notification_service = get_notification_service(db)
+        family_group_id = int(family_group_id_val)  
+        reminder_id = int(reminder.id)  
+        completion_id = int(completion.id)  
+        reminder_title = str(reminder.title)  
         await notification_service.notify_reminder_completed(
-            family_group_id=reminder.family_group_id,
-            sender_id=current_user.id,
-            reminder_id=reminder.id,
-            completion_id=completion.id,
-            reminder_title=reminder.title,
-            completed_status=data.status.value
+            family_group_id=family_group_id,
+            sender_id=user_id,
+            reminder_id=reminder_id,
+            completion_id=completion_id,
+            reminder_title=reminder_title,
+            completed_status=data.status.value if hasattr(data.status, 'value') else str(data.status)
         )
         
         logger.info(
             "family_reminder_completed",
-            reminder_id=reminder.id,
-            family_group_id=reminder.family_group_id,
-            completed_by=current_user.id,
+            reminder_id=reminder_id,
+            family_group_id=family_group_id,
+            completed_by=user_id,
             event="family_reminder_completion"
         )
     
     return ApiResponse.success(data=ReminderCompletionResponse(
-        id=completion.id,
-        reminder_id=completion.reminder_id,
-        user_id=completion.user_id,
-        scheduled_time=completion.scheduled_time,
-        completed_time=completion.completed_time,
-        status=completion.status,
-        delay_minutes=completion.delay_minutes,
-        created_at=completion.created_at
+        id=int(completion.id),  
+        reminder_id=int(completion.reminder_id),  
+        user_id=int(completion.user_id),  
+        scheduled_time=completion.scheduled_time,  
+        completed_time=completion.completed_time,  
+        status=completion.status,  
+        delay_minutes=int(completion.delay_minutes) if completion.delay_minutes else None,  
+        created_at=completion.created_at  
     ))
 
 
@@ -156,20 +176,29 @@ async def get_reminder_completions(
     """
     reminder_repo = ReminderRepository(db)
     completion_repo = ReminderCompletionRepository(db)
+    user_id = int(current_user.id)  
     
     # 检查提醒是否存在
-    reminder = await reminder_repo.get_by_id(reminder_id)
+    reminder = await reminder_repo.get_by_id(reminder_id, user_id)
+    
+    # 如果不是所有者，尝试通过family查找
     if not reminder:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="提醒不存在"
-        )
+        reminder = await reminder_repo.get_by_id_without_user_check(reminder_id)
+        
+        if not reminder:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="提醒不存在"
+            )
     
     # 检查权限（所有者或家庭成员可查看）
-    can_view = reminder.user_id == current_user.id
-    if not can_view and reminder.family_group_id:
+    can_view = int(reminder.user_id) == user_id  
+    family_group_id_check = int(reminder.family_group_id) if reminder.family_group_id else None  
+    if not can_view and family_group_id_check:
         family_member_repo = FamilyMemberRepository(db)
-        can_view = await family_member_repo.is_member(reminder.family_group_id, current_user.id)
+        assert reminder.family_group_id is not None
+        family_group_id = int(reminder.family_group_id)  
+        can_view = await family_member_repo.is_member(family_group_id, user_id)
     
     if not can_view:
         raise HTTPException(
@@ -181,14 +210,14 @@ async def get_reminder_completions(
     
     return ApiResponse.success(data=[
         ReminderCompletionResponse(
-            id=c.id,
-            reminder_id=c.reminder_id,
-            user_id=c.user_id,
-            scheduled_time=c.scheduled_time,
-            completed_time=c.completed_time,
-            status=c.status,
-            delay_minutes=c.delay_minutes,
-            created_at=c.created_at
+            id=int(c.id),  
+            reminder_id=int(c.reminder_id),  
+            user_id=int(c.user_id),  
+            scheduled_time=c.scheduled_time,  
+            completed_time=c.completed_time,  
+            status=c.status,  
+            delay_minutes=int(c.delay_minutes) if c.delay_minutes else None,  
+            created_at=c.created_at  
         ) for c in completions
     ])
 
@@ -203,18 +232,22 @@ async def get_my_completions(
     查询我的完成记录
     """
     completion_repo = ReminderCompletionRepository(db)
-    completions = await completion_repo.get_by_user(current_user.id, days=days)
+    user_id = int(current_user.id)  
+    
+    # 查询最近N天的完成记录
+    since = datetime.utcnow() - timedelta(days=days)
+    completions = await completion_repo.get_by_user_since(user_id, since, limit=1000)
     
     return ApiResponse.success(data=[
         ReminderCompletionResponse(
-            id=c.id,
-            reminder_id=c.reminder_id,
-            user_id=c.user_id,
-            scheduled_time=c.scheduled_time,
-            completed_time=c.completed_time,
-            status=c.status,
-            delay_minutes=c.delay_minutes,
-            created_at=c.created_at
+            id=int(c.id),  
+            reminder_id=int(c.reminder_id),  
+            user_id=int(c.user_id),  
+            scheduled_time=c.scheduled_time,  
+            completed_time=c.completed_time,  
+            status=c.status,  
+            delay_minutes=int(c.delay_minutes) if c.delay_minutes else None,  
+            created_at=c.created_at  
         ) for c in completions
     ])
 
@@ -231,19 +264,27 @@ async def get_reminder_stats(
     """
     reminder_repo = ReminderRepository(db)
     completion_repo = ReminderCompletionRepository(db)
+    user_id = int(current_user.id)  
     
-    reminder = await reminder_repo.get_by_id(reminder_id)
+    reminder = await reminder_repo.get_by_id(reminder_id, user_id)
+    
+    # 如果不是所有者，尝试通过family查找
     if not reminder:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="提醒不存在"
-        )
+        reminder = await reminder_repo.get_by_id_without_user_check(reminder_id)
+        
+        if not reminder:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="提醒不存在"
+            )
     
     # 检查权限
-    can_view = reminder.user_id == current_user.id
-    if not can_view and reminder.family_group_id:
+    can_view = int(reminder.user_id) == user_id  
+    family_group_id_stats = int(reminder.family_group_id) if reminder.family_group_id else None  
+    if not can_view and family_group_id_stats:
         family_member_repo = FamilyMemberRepository(db)
-        can_view = await family_member_repo.is_member(reminder.family_group_id, current_user.id)
+        family_group_id = int(family_group_id_stats)  
+        can_view = await family_member_repo.is_member(family_group_id, user_id)
     
     if not can_view:
         raise HTTPException(
@@ -256,15 +297,37 @@ async def get_reminder_stats(
     
     # 筛选指定天数内的记录
     since = datetime.utcnow() - timedelta(days=days)
-    recent_completions = [c for c in completions if c.scheduled_time >= since]
+    recent_completions = [
+        c for c in completions 
+        if c.scheduled_time and c.scheduled_time >= since  
+    ]
     
     total_count = len(recent_completions)
-    completed_count = sum(1 for c in recent_completions if c.status in [CompletionStatus.COMPLETED, CompletionStatus.DELAYED])
-    delayed_count = sum(1 for c in recent_completions if c.status == CompletionStatus.DELAYED)
-    skipped_count = sum(1 for c in recent_completions if c.status == CompletionStatus.SKIPPED)
+    completed_count = sum(
+        1 for c in recent_completions 
+        if str(c.status) in ["completed", "delayed"]  
+    )
+    delayed_count = sum(
+        1 for c in recent_completions 
+        if str(c.status) == "delayed"  
+    )
+    skipped_count = sum(
+        1 for c in recent_completions 
+        if str(c.status) == "skipped"  
+    )
     
-    completion_rate = await completion_repo.get_completion_rate(reminder_id, days=days)
-    avg_delay = await completion_repo.get_avg_delay_time(reminder_id, days=days)
+    # 计算完成率
+    completion_rate = (completed_count / total_count * 100) if total_count > 0 else 0.0
+    
+    # 计算平均延迟
+    delayed_records = [
+        c for c in recent_completions 
+        if c.delay_minutes and int(c.delay_minutes) > 0  
+    ]
+    avg_delay = (
+        int(sum(int(c.delay_minutes) for c in delayed_records) / len(delayed_records))  
+        if delayed_records else 0
+    )
     
     return ApiResponse.success(data=ReminderStats(
         reminder_id=reminder_id,
@@ -288,24 +351,36 @@ async def get_my_stats(
     """
     reminder_repo = ReminderRepository(db)
     completion_repo = ReminderCompletionRepository(db)
+    user_id = int(current_user.id)  
     
     # 统计提醒数量
-    all_reminders = await reminder_repo.get_by_user(current_user.id)
-    active_reminders = [r for r in all_reminders if r.is_active]
+    all_reminders = await reminder_repo.get_user_reminders(user_id, limit=10000)
+    active_reminders = [r for r in all_reminders if r.is_active]  
     
     # 统计完成记录
-    completions = await completion_repo.get_by_user(current_user.id, days=days)
+    since = datetime.utcnow() - timedelta(days=days)
+    completions = await completion_repo.get_by_user_since(user_id, since, limit=10000)
     total_completions = len(completions)
     
-    # 计算完成率
-    completion_rate = await completion_repo.get_user_completion_rate(current_user.id, days=days)
+    # 计算完成率（假设每个提醒每天应完成一次，简化计算）
+    expected_completions = len(active_reminders) * days
+    completion_rate = (
+        (total_completions / expected_completions * 100) 
+        if expected_completions > 0 else 0.0
+    )
     
     # 计算平均延迟时间
-    delayed_completions = [c for c in completions if c.status == CompletionStatus.DELAYED and c.delay_minutes]
-    avg_delay = int(sum(c.delay_minutes for c in delayed_completions) / len(delayed_completions)) if delayed_completions else 0
+    delayed_completions = [
+        c for c in completions 
+        if c.delay_minutes and int(c.delay_minutes) > 0  
+    ]
+    avg_delay = (
+        int(sum(int(c.delay_minutes) for c in delayed_completions) / len(delayed_completions))  
+        if delayed_completions else 0
+    )
     
     return ApiResponse.success(data=UserStats(
-        user_id=current_user.id,
+        user_id=user_id,
         total_reminders=len(all_reminders),
         active_reminders=len(active_reminders),
         total_completions=total_completions,

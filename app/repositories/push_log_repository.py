@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy import and_, desc
-from app.models.push_log import PushLog, PushStatus, UserAction
+from app.models.push_log import PushLog
 
 
 class PushLogRepository:
@@ -20,11 +20,11 @@ class PushLogRepository:
         self,
         push_task_id: int,
         channel: str,
-        status: PushStatus,
+        status: str,
         request_data: Optional[dict] = None,
         response_data: Optional[dict] = None,
         error_message: Optional[str] = None,
-        user_action: Optional[UserAction] = None,
+        user_action: Optional[str] = None,
         response_time_seconds: Optional[int] = None
     ) -> PushLog:
         """创建推送日志"""
@@ -50,9 +50,11 @@ class PushLogRepository:
     
     async def get_by_task(self, push_task_id: int) -> List[PushLog]:
         """查询推送任务的所有日志"""
-        return self.db.query(PushLog).filter(
+        stmt = select(PushLog).where(
             PushLog.push_task_id == push_task_id
-        ).order_by(PushLog.created_at).all()
+        ).order_by(PushLog.created_at)
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
     
     async def get_failed_logs(
         self,
@@ -61,39 +63,51 @@ class PushLogRepository:
     ) -> List[PushLog]:
         """查询失败的推送日志"""
         since = datetime.utcnow() - timedelta(hours=hours)
-        return self.db.query(PushLog).filter(
+        stmt = select(PushLog).where(
             and_(
-                PushLog.status == PushStatus.FAILED,
+                PushLog.status == "failed",
                 PushLog.created_at >= since
             )
-        ).order_by(desc(PushLog.created_at)).limit(limit).all()
+        ).order_by(desc(PushLog.created_at)).limit(limit)
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
     
     async def get_channel_stats(self, channel: str, days: int = 7) -> dict:
         """统计渠道推送效果"""
+        from sqlalchemy import func
         since = datetime.utcnow() - timedelta(days=days)
         
-        total = self.db.query(PushLog).filter(
+        # 统计总数
+        stmt_total = select(func.count()).select_from(PushLog).where(
             and_(
                 PushLog.channel == channel,
                 PushLog.created_at >= since
             )
-        ).count()
+        )
+        result_total = await self.db.execute(stmt_total)
+        total = result_total.scalar() or 0
         
-        success = self.db.query(PushLog).filter(
+        # 统计成功数
+        stmt_success = select(func.count()).select_from(PushLog).where(
             and_(
                 PushLog.channel == channel,
-                PushLog.status == PushStatus.SUCCESS,
+                PushLog.status == "success",
                 PushLog.created_at >= since
             )
-        ).count()
+        )
+        result_success = await self.db.execute(stmt_success)
+        success = result_success.scalar() or 0
         
-        failed = self.db.query(PushLog).filter(
+        # 统计失败数
+        stmt_failed = select(func.count()).select_from(PushLog).where(
             and_(
                 PushLog.channel == channel,
-                PushLog.status == PushStatus.FAILED,
+                PushLog.status == "failed",
                 PushLog.created_at >= since
             )
-        ).count()
+        )
+        result_failed = await self.db.execute(stmt_failed)
+        failed = result_failed.scalar() or 0
         
         return {
             "channel": channel,
@@ -106,11 +120,11 @@ class PushLogRepository:
     async def update_user_action(
         self,
         log_id: int,
-        user_action: UserAction,
+        user_action: str,
         response_time_seconds: int
     ) -> Optional[PushLog]:
         """更新用户响应动作"""
-        log = self.get_by_id(log_id)
+        log = await self.get_by_id(log_id)
         if not log:
             return None
         

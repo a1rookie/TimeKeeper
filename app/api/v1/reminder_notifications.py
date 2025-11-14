@@ -64,8 +64,9 @@ async def create_notification_config(
     ```
     """
     # 检查提醒是否存在
+    user_id = int(current_user.id)  
     reminder_repo = ReminderRepository(db)
-    reminder = await reminder_repo.get_by_id(reminder_id, current_user.id)
+    reminder = await reminder_repo.get_by_id(reminder_id, user_id)
     
     if not reminder:
         raise HTTPException(
@@ -119,8 +120,9 @@ async def get_notification_config(
 ):
     """获取提醒的通知策略"""
     # 检查提醒是否存在且有权限
+    user_id = int(current_user.id)  
     reminder_repo = ReminderRepository(db)
-    reminder = await reminder_repo.get_by_id(reminder_id, current_user.id)
+    reminder = await reminder_repo.get_by_id(reminder_id, user_id)
     
     if not reminder:
         raise HTTPException(
@@ -150,8 +152,9 @@ async def update_notification_config(
 ):
     """更新提醒的通知策略"""
     # 检查提醒权限
+    user_id = int(current_user.id)  
     reminder_repo = ReminderRepository(db)
-    reminder = await reminder_repo.get_by_id(reminder_id, current_user.id)
+    reminder = await reminder_repo.get_by_id(reminder_id, user_id)
     
     if not reminder:
         raise HTTPException(
@@ -193,8 +196,9 @@ async def delete_notification_config(
 ):
     """删除提醒的通知策略"""
     # 检查提醒权限
+    user_id = int(current_user.id)  
     reminder_repo = ReminderRepository(db)
-    reminder = await reminder_repo.get_by_id(reminder_id, current_user.id)
+    reminder = await reminder_repo.get_by_id(reminder_id, user_id)
     
     if not reminder:
         raise HTTPException(
@@ -237,8 +241,9 @@ async def get_notification_schedule(
     - 总通知次数
     """
     # 检查提醒权限
+    user_id = int(current_user.id)  
     reminder_repo = ReminderRepository(db)
-    reminder = await reminder_repo.get_by_id(reminder_id, current_user.id)
+    reminder = await reminder_repo.get_by_id(reminder_id, user_id)
     
     if not reminder:
         raise HTTPException(
@@ -258,12 +263,12 @@ async def get_notification_schedule(
     all_times = notification_service.get_all_notification_times(reminder, config)
     
     response = NotificationScheduleResponse(
-        reminder_id=reminder.id,
-        reminder_title=reminder.title,
-        reminder_time=reminder.first_remind_time,
+        reminder_id=reminder.id, 
+        reminder_title=reminder.title, 
+        reminder_time=reminder.first_remind_time, 
         notification_times=all_times,
         advance_notifications=advance_times,
-        same_day_notifications=same_day_times,
+        same_day_notifications=same_day_times, 
         total_count=len(all_times)
     )
     

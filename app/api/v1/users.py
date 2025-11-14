@@ -56,7 +56,7 @@ async def register(
             )
         
         try:
-            ok = verify_code(user_data.phone, user_data.sms_code, purpose="register", db=db)
+            ok = await verify_code(user_data.phone, user_data.sms_code, purpose="register", db=db)
             if not ok:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -124,7 +124,7 @@ async def login(
     if user_data.sms_code:
         # 验证码登录
         try:
-            ok = verify_code(user_data.phone, user_data.sms_code, purpose="login", db=db)
+            ok = await verify_code(user_data.phone, user_data.sms_code, purpose="login", db=db)
             if not ok:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -149,9 +149,13 @@ async def login(
         )
     
     # 验证设备类型
-    device_type = x_device_type.lower()
-    if device_type not in ["web", "ios", "android", "desktop"]:
-        device_type = "web"
+    from typing import cast
+    from app.services.session_manager import DeviceType
+    
+    device_type_str = x_device_type.lower() if x_device_type else "web"
+    if device_type_str not in ["web", "ios", "android", "desktop"]:
+        device_type_str = "web"
+    device_type = cast(DeviceType, device_type_str)
     
     # Create access token with JTI
     access_token, jti = create_access_token(
@@ -193,16 +197,6 @@ async def login(
             reason=str(e),
             fallback="jwt_only_mode"
         )
-    
-    # 记录成功登录事件
-    logger.info(
-        "user_login_success",
-        user_id=user.id,
-        phone=user.phone,
-        device_type=device_type,
-        login_method="sms_code" if user_data.sms_code else "password",
-        event="user_login"
-    )
     
     token_data = Token(access_token=access_token, token_type="bearer")
     return ApiResponse.success(data=token_data, message="登录成功")
@@ -252,7 +246,7 @@ async def send_sms_code(
 
     # 生成并存储验证码（包含防刷检查）
     try:
-        code, log_id = generate_and_store_code(
+        code, log_id = await generate_and_store_code(
             phone,
             purpose=purpose,
             ip_address=ip_address,
@@ -278,7 +272,7 @@ async def send_sms_code(
         if log_id:
             status_str = "sent" if ok else "failed"
             error_msg = None if ok else "短信发送失败"
-            update_sms_log_status(db, log_id, status_str, error_msg)
+            await update_sms_log_status(db, log_id, status_str, error_msg)
         
         if not ok:
             raise HTTPException(
@@ -289,7 +283,7 @@ async def send_sms_code(
         raise
     except Exception as e:
         if log_id:
-            update_sms_log_status(db, log_id, "failed", str(e))
+            await update_sms_log_status(db, log_id, "failed", str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"短信发送异常: {str(e)}"
@@ -340,9 +334,13 @@ async def logout(
         - 仅登出当前设备类型的会话
         - 其他设备类型的会话不受影响
     """
-    device_type = x_device_type.lower()
-    if device_type not in ["web", "ios", "android", "desktop"]:
-        device_type = "web"
+    from typing import cast
+    from app.services.session_manager import DeviceType
+    
+    device_type_str = x_device_type.lower() if x_device_type else "web"
+    if device_type_str not in ["web", "ios", "android", "desktop"]:
+        device_type_str = "web"
+    device_type = cast(DeviceType, device_type_str)
     
     try:
         from app.services.session_manager import get_session_manager
@@ -350,27 +348,12 @@ async def logout(
         
         session_manager.revoke_session(current_user.id, device_type)
         
-        # 记录登出事件
-        logger.info(
-            "user_logout",
-            user_id=current_user.id,
-            phone=current_user.phone,
-            device_type=device_type,
-            event="user_logout_single_device"
-        )
-        
         return ApiResponse.success(
             data={"device_type": device_type},
             message=f"已登出 {device_type} 设备"
         )
-    except RuntimeError as e:
+    except RuntimeError:
         # Redis未初始化
-        logger.warning(
-            "session_manager_unavailable_on_logout",
-            user_id=current_user.id,
-            device_type=device_type,
-            reason=str(e)
-        )
         return ApiResponse.success(
             data={"device_type": device_type},
             message="登出成功（会话管理未启用）"
@@ -398,26 +381,11 @@ async def logout_all(
         
         revoked_count = session_manager.revoke_all_sessions(current_user.id)
         
-        # 记录全局登出事件（高风险操作）
-        logger.warning(
-            "user_logout_all_devices",
-            user_id=current_user.id,
-            phone=current_user.phone,
-            revoked_count=revoked_count,
-            event="user_logout_all_devices",
-            security_level="high"
-        )
-        
         return ApiResponse.success(
             data={"revoked_count": revoked_count},
             message=f"已登出所有设备，共 {revoked_count} 个活跃会话"
         )
-    except RuntimeError as e:
-        logger.warning(
-            "session_manager_unavailable_on_logout_all",
-            user_id=current_user.id,
-            reason=str(e)
-        )
+    except RuntimeError:
         return ApiResponse.success(
             data={"revoked_count": 0},
             message="登出成功（会话管理未启用）"

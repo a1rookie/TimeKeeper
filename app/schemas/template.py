@@ -18,7 +18,7 @@ class ReminderTemplateResponse(BaseModel):
     description: Optional[str]
     default_recurrence_type: Optional[str]
     default_recurrence_config: Optional[dict]
-    default_remind_advance_days: int
+    default_remind_advance_days: int | None = None
     usage_count: int
     is_active: bool
     created_at: datetime
@@ -56,7 +56,7 @@ class UserCustomTemplateResponse(BaseModel):
     description: Optional[str]
     recurrence_type: Optional[str]
     recurrence_config: Optional[dict]
-    remind_advance_days: int
+    remind_advance_days: int | None = None
     created_from_template_id: Optional[int]
     created_at: datetime
     updated_at: datetime

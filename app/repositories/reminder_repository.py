@@ -28,6 +28,13 @@ class ReminderRepository:
         )
         return result.scalar_one_or_none()
     
+    async def get_by_id_without_user_check(self, reminder_id: int) -> Optional[Reminder]:
+        """根据ID获取提醒（不验证所有权，用于家庭共享提醒）"""
+        result = await self.db.execute(
+            select(Reminder).where(Reminder.id == reminder_id)
+        )
+        return result.scalar_one_or_none()
+    
     async def get_user_reminders(
         self, 
         user_id: int, 
@@ -57,8 +64,8 @@ class ReminderRepository:
         recurrence_type: RecurrenceType,
         first_remind_time: datetime,
         description: Optional[str] = None,
-        recurrence_config: dict = None,
-        remind_channels: List[str] = None,
+        recurrence_config: dict | None = None,
+        remind_channels: List[str] | None= None,
         advance_minutes: int = 0,
         priority: int = 1,
         amount: Optional[int] = None,
@@ -140,7 +147,7 @@ class ReminderRepository:
         )
         return list(result.scalars().all())
     
-    async def count_user_reminders(self, user_id: int, is_active: Optional[bool] = None) -> int:
+    async def count_user_reminders(self, user_id: int, is_active: Optional[bool] = None) -> int | None:
         """统计用户提醒数量"""
         from sqlalchemy import func, select as sql_select
         

@@ -3,47 +3,29 @@ PushTask Repository
 推送任务数据访问层
 """
 
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from sqlalchemy import and_
+from sqlalchemy import select, func, and_, update
 from datetime import datetime
 from app.models.push_task import PushTask, PushStatus
 
 
 class PushTaskRepository:
-    """推送任务数据仓库"""
-    
+    """推送任务数据仓库（Async + 兼容类方法调用）"""
+
     def __init__(self, db: AsyncSession):
         self.db = db
-    
-    async def get_by_id(self, task_id: int) -> Optional[PushTask]:
-        """根据ID获取推送任务"""
-        result = await self.db.execute(select(PushTask).filter(PushTask.id == task_id))
+
+    # -----------------
+    # 实例方法（用于通过实例操作）
+    # -----------------
+    async def get_by_id(self, task_id: int, user_id: Optional[int] = None) -> Optional[PushTask]:
+        stmt = select(PushTask).where(PushTask.id == task_id)
+        if user_id is not None:
+            stmt = stmt.where(PushTask.user_id == user_id)
+        result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
-    
-    async def get_by_reminder(
-        self, 
-        reminder_id: int, 
-        status: Optional[PushStatus] = None
-    ) -> List[PushTask]:
-        """获取某个提醒的所有推送任务"""
-        query = self.db.query(PushTask).filter(PushTask.reminder_id == reminder_id)
-        
-        if status is not None:
-            query = query.filter(PushTask.status == status)
-        
-        return query.order_by(PushTask.scheduled_time.desc()).all()
-    
-    async def get_pending_tasks(self, before_time: datetime) -> List[PushTask]:
-        """获取待推送的任务（计划时间在指定时间之前）"""
-        return self.db.query(PushTask).filter(
-            and_(
-                PushTask.status == PushStatus.PENDING,
-                PushTask.scheduled_time <= before_time
-            )
-        ).order_by(PushTask.priority.desc(), PushTask.scheduled_time).all()
-    
+
     async def create(
         self,
         reminder_id: int,
@@ -51,11 +33,10 @@ class PushTaskRepository:
         title: str,
         scheduled_time: datetime,
         content: Optional[str] = None,
-        channels: List[str] = None,
+        channels: Optional[List[str]] = None,
         priority: int = 1,
         max_retries: int = 3
     ) -> PushTask:
-        """创建推送任务"""
         new_task = PushTask(
             reminder_id=reminder_id,
             user_id=user_id,
@@ -68,63 +49,164 @@ class PushTaskRepository:
             max_retries=max_retries,
             priority=priority
         )
-        
+
         self.db.add(new_task)
         await self.db.commit()
         await self.db.refresh(new_task)
         return new_task
-    
+
+    async def update(self, task: PushTask, **update_data) -> PushTask:
+        for k, v in update_data.items():
+            setattr(task, k, v)
+        await self.db.commit()
+        await self.db.refresh(task)
+        return task
+
     async def update_status(
-        self, 
-        task: PushTask, 
+        self,
+        task: PushTask,
         status: PushStatus,
         error_message: Optional[str] = None,
         push_response: Optional[dict] = None
     ) -> PushTask:
-        """更新任务状态"""
         task.status = status
-        
         if status == PushStatus.SENT:
             task.sent_time = datetime.now()
             task.executed_at = datetime.now()
         elif status == PushStatus.FAILED:
-            task.retry_count += 1
+            task.retry_count = (task.retry_count or 0) + 1
             if error_message:
                 task.error_message = error_message
-        
+
         if push_response:
             task.push_response = push_response
-        
+
         await self.db.commit()
         await self.db.refresh(task)
         return task
-    
+
+    async def get_pending_tasks(self, before_time: datetime) -> List[PushTask]:
+        stmt = select(PushTask).where(
+            and_(
+                PushTask.status == PushStatus.PENDING,
+                PushTask.scheduled_time <= before_time
+            )
+        ).order_by(PushTask.priority.desc(), PushTask.scheduled_time)
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
     async def get_failed_tasks_for_retry(self, max_retries: int = 3) -> List[PushTask]:
-        """获取可重试的失败任务"""
-        return self.db.query(PushTask).filter(
+        stmt = select(PushTask).where(
             and_(
                 PushTask.status == PushStatus.FAILED,
                 PushTask.retry_count < max_retries
             )
-        ).all()
-    
-    async def cancel_tasks_by_reminder(self, reminder_id: int) -> int:
-        """取消某个提醒的所有待推送任务"""
-        result = self.db.query(PushTask).filter(
-            and_(
-                PushTask.reminder_id == reminder_id,
-                PushTask.status == PushStatus.PENDING
-            )
-        ).update({"status": PushStatus.CANCELLED})
-        
+        )
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def cancel(self, task: PushTask) -> None:
+        task.status = PushStatus.CANCELLED
         await self.db.commit()
-        return result
-    
+        await self.db.refresh(task)
+
+    async def cancel_tasks_by_reminder(self, reminder_id: int) -> int:
+        stmt = (
+            update(PushTask)
+            .where(and_(PushTask.reminder_id == reminder_id, PushTask.status == PushStatus.PENDING))
+            .values(status=PushStatus.CANCELLED)
+        )
+        result = await self.db.execute(stmt)
+        await self.db.commit()
+        # 在异步模式下，rowcount 可能不可用，返回0表示已执行
+        return getattr(result, 'rowcount', 0)
+
     async def count_by_status(self, user_id: int, status: PushStatus) -> int:
-        """统计用户某状态的任务数"""
-        return self.db.query(PushTask).filter(
-            and_(
-                PushTask.user_id == user_id,
-                PushTask.status == status
+        stmt = select(func.count()).select_from(PushTask).where(
+            and_(PushTask.user_id == user_id, PushTask.status == status)
+        )
+        result = await self.db.execute(stmt)
+        return int(result.scalar_one())
+
+    # -----------------
+    # 类方法（兼容现有代码风格：通过类直接调用并传入 db 参数）
+    # -----------------
+    @staticmethod
+    async def get_by_id_static(db: AsyncSession, task_id: int, user_id: Optional[int] = None) -> Optional[PushTask]:
+        repo = PushTaskRepository(db)
+        return await repo.get_by_id(task_id=task_id, user_id=user_id)
+
+    @staticmethod
+    async def list_by_user(
+        db: AsyncSession,
+        user_id: int,
+        skip: int = 0,
+        limit: int = 20,
+        status: Optional[PushStatus] = None,
+        reminder_id: Optional[int] = None
+    ) -> Tuple[List[PushTask], int]:
+        stmt = select(PushTask).where(PushTask.user_id == user_id)
+        if status is not None:
+            stmt = stmt.where(PushTask.status == status)
+        if reminder_id is not None:
+            stmt = stmt.where(PushTask.reminder_id == reminder_id)
+
+        total_stmt = select(func.count()).select_from(PushTask).where(PushTask.user_id == user_id)
+        if status is not None:
+            total_stmt = total_stmt.where(PushTask.status == status)
+        if reminder_id is not None:
+            total_stmt = total_stmt.where(PushTask.reminder_id == reminder_id)
+
+        total_res = await db.execute(total_stmt)
+        total = int(total_res.scalar_one())
+
+        stmt = stmt.order_by(PushTask.scheduled_time.desc()).offset(skip).limit(limit)
+        res = await db.execute(stmt)
+        tasks = list(res.scalars().all())
+        return tasks, total
+
+    @staticmethod
+    async def create_static(db: AsyncSession, **kwargs) -> PushTask:
+        repo = PushTaskRepository(db)
+        return await repo.create(**kwargs)
+
+    @staticmethod
+    async def update_static(db: AsyncSession, task: PushTask, **update_data) -> PushTask:
+        repo = PushTaskRepository(db)
+        return await repo.update(task=task, **update_data)
+
+    @staticmethod
+    async def update_status_static(db: AsyncSession, task: PushTask, status: PushStatus, error_message: Optional[str] = None, push_response: Optional[dict] = None) -> PushTask:
+        repo = PushTaskRepository(db)
+        return await repo.update_status(task=task, status=status, error_message=error_message, push_response=push_response)
+
+    @staticmethod
+    async def get_pending_tasks_static(db: AsyncSession, before_time: datetime) -> List[PushTask]:
+        repo = PushTaskRepository(db)
+        return await repo.get_pending_tasks(before_time=before_time)
+
+    @staticmethod
+    async def cancel_static(db: AsyncSession, task: PushTask) -> None:
+        repo = PushTaskRepository(db)
+        return await repo.cancel(task=task)
+
+    @staticmethod
+    async def reset_for_retry(db: AsyncSession, task: PushTask) -> PushTask:
+        # 将任务重置为PENDING并清零重试计数
+        task.status = PushStatus.PENDING
+        task.retry_count = 0
+        await db.commit()
+        await db.refresh(task)
+        return task
+
+    @staticmethod
+    async def get_statistics(db: AsyncSession, user_id: int) -> dict:
+        # 返回简单统计数据：各状态计数
+        stats = {}
+        for status in [PushStatus.PENDING, PushStatus.SENT, PushStatus.FAILED, PushStatus.CANCELLED]:
+            stmt = select(func.count()).select_from(PushTask).where(
+                and_(PushTask.user_id == user_id, PushTask.status == status)
             )
-        ).count()
+            res = await db.execute(stmt)
+            stats[status.name.lower()] = int(res.scalar_one())
+        return stats
