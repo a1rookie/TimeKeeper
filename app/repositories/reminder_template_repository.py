@@ -41,7 +41,7 @@ class ReminderTemplateRepository:
         await self.db.refresh(template)
         return template
     
-    async def get_by_id(self, template_id: int) -> Optional[ReminderTemplate]:
+    async def get_by_id(self, template_id: int) -> ReminderTemplate | None:
         """根据ID查询模板"""
         result = await self.db.execute(select(ReminderTemplate).where(ReminderTemplate.id == template_id))
         return result.scalar_one_or_none()
@@ -94,7 +94,7 @@ class ReminderTemplateRepository:
         await self.db.commit()
         return True
     
-    async def update(self, template_id: int, **kwargs) -> Optional[ReminderTemplate]:
+    async def update(self, template_id: int, **kwargs) -> ReminderTemplate | None:
         """更新模板"""
         template = await self.get_by_id(template_id)
         if not template:

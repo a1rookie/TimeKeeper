@@ -3,6 +3,7 @@ Template Share Repository
 模板分享数据访问层
 """
 from typing import List, Optional
+from collections.abc import Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy import and_, desc
@@ -67,7 +68,7 @@ class TemplateShareRepository:
         res = await self.db.execute(stmt)
         return res.scalar_one_or_none()
     
-    async def get_public_shares(self, limit: int = 50, offset: int = 0) -> List[TemplateShare]:
+    async def get_public_shares(self, limit: int = 50, offset: int = 0) -> Sequence[TemplateShare]:
         """获取公开分享列表"""
         stmt = select(TemplateShare).where(
             and_(
@@ -76,9 +77,9 @@ class TemplateShareRepository:
             )
         ).order_by(desc(TemplateShare.like_count)).limit(limit).offset(offset)
         res = await self.db.execute(stmt)
-        return list(res.scalars().all())
+        return res.scalars().all()
     
-    async def get_family_shares(self, family_group_id: int) -> List[TemplateShare]:
+    async def get_family_shares(self, family_group_id: int) -> Sequence[TemplateShare]:
         """获取家庭组分享列表"""
         stmt = select(TemplateShare).where(
             and_(
@@ -88,9 +89,9 @@ class TemplateShareRepository:
             )
         ).order_by(desc(TemplateShare.created_at))
         res = await self.db.execute(stmt)
-        return list(res.scalars().all())
+        return res.scalars().all()
     
-    async def get_user_shares(self, user_id: int) -> List[TemplateShare]:
+    async def get_user_shares(self, user_id: int) -> Sequence[TemplateShare]:
         """获取用户的所有分享"""
         stmt = select(TemplateShare).where(
             and_(
@@ -99,7 +100,7 @@ class TemplateShareRepository:
             )
         ).order_by(desc(TemplateShare.created_at))
         res = await self.db.execute(stmt)
-        return list(res.scalars().all())
+        return res.scalars().all()
     
     async def increment_usage(self, share_id: int) -> bool:
         """增加使用次数"""

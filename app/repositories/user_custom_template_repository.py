@@ -41,7 +41,7 @@ class UserCustomTemplateRepository:
         await self.db.refresh(template)
         return template
     
-    async def get_by_id(self, template_id: int) -> Optional[UserCustomTemplate]:
+    async def get_by_id(self, template_id: int) -> UserCustomTemplate | None:
         """根据ID查询模板"""
         result = await self.db.execute(select(UserCustomTemplate).where(UserCustomTemplate.id == template_id))
         return result.scalar_one_or_none()
@@ -52,7 +52,7 @@ class UserCustomTemplateRepository:
         res = await self.db.execute(stmt)
         return res.scalars().all()
     
-    async def get_by_user_and_name(self, user_id: int, name: str) -> Optional[UserCustomTemplate]:
+    async def get_by_user_and_name(self, user_id: int, name: str) -> UserCustomTemplate | None:
         """根据用户和名称查询模板"""
         stmt = select(UserCustomTemplate).where(
             and_(
@@ -63,7 +63,7 @@ class UserCustomTemplateRepository:
         res = await self.db.execute(stmt)
         return res.scalar_one_or_none()
     
-    async def update(self, template_id: int, **kwargs) -> Optional[UserCustomTemplate]:
+    async def update(self, template_id: int, **kwargs) -> UserCustomTemplate | None:
         """更新模板"""
         template = await self.get_by_id(template_id)
         if not template:

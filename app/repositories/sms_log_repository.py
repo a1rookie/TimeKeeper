@@ -79,7 +79,7 @@ class SmsLogRepository:
         log = result.scalar_one_or_none()
         
         if log:
-            log_id = int(log.id)  # type: ignore
+            log_id = int(log.id)
             update_stmt = sql_update(SmsLog).where(SmsLog.id == log_id).values(
                 verify_attempts=SmsLog.verify_attempts + 1
             )
@@ -88,7 +88,7 @@ class SmsLogRepository:
             # 重新查询以获取更新后的值
             result = await self.db.execute(select(SmsLog).where(SmsLog.id == log_id))
             updated_log = result.scalar_one_or_none()
-            return int(updated_log.verify_attempts) if updated_log else 0  # type: ignore
+            return int(updated_log.verify_attempts) if updated_log else 0
         return 0
     
     async def count_by_phone_today(self, phone: str, purpose: Optional[str] = None) -> int:
@@ -124,7 +124,7 @@ class SmsLogRepository:
         result = await self.db.execute(stmt)
         return result.scalar() or 0
     
-    async def get_latest_unverified(self, phone: str, purpose: str) -> Optional[SmsLog]:
+    async def get_latest_unverified(self, phone: str, purpose: str) -> SmsLog | None:
         """获取最新的未验证记录"""
         now = datetime.now()
         stmt = select(SmsLog).where(

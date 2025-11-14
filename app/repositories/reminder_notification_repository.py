@@ -3,6 +3,7 @@ Reminder Notification Repository
 提醒通知策略数据访问层
 """
 from typing import Optional, List
+from collections.abc import Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -45,7 +46,7 @@ class ReminderNotificationRepository:
         await self.db.refresh(notification)
         return notification
     
-    async def get_by_reminder_id(self, reminder_id: int) -> Optional[ReminderNotification]:
+    async def get_by_reminder_id(self, reminder_id: int) -> ReminderNotification | None:
         """根据提醒ID查询通知策略"""
         result = await self.db.execute(
             select(ReminderNotification).filter(ReminderNotification.reminder_id == reminder_id)
@@ -56,7 +57,7 @@ class ReminderNotificationRepository:
         self,
         reminder_id: int,
         **kwargs
-    ) -> Optional[ReminderNotification]:
+    ) -> ReminderNotification | None:
         """更新通知策略"""
         notification = await self.get_by_reminder_id(reminder_id)
         if not notification:
@@ -80,9 +81,9 @@ class ReminderNotificationRepository:
         await self.db.commit()
         return True
     
-    async def get_active_notifications(self) -> List[ReminderNotification]:
+    async def get_active_notifications(self) -> Sequence[ReminderNotification]:
         """获取所有活跃的通知策略"""
         result = await self.db.execute(
             select(ReminderNotification).filter(ReminderNotification.is_active == True)
         )
-        return list(result.scalars().all())
+        return result.scalars().all()
