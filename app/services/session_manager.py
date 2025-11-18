@@ -3,7 +3,7 @@ Session Management Service
 会话管理服务 - 实现单点登录/互踢机制
 """
 from typing import Optional, Literal
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from redis import Redis
 from app.core.config import settings
 
@@ -173,7 +173,7 @@ class SessionManager:
                 active_sessions[device_type] = {
                     "jti": jti,
                     "expires_in_seconds": ttl,
-                    "last_activity": datetime.utcnow() - timedelta(seconds=self.session_ttl - ttl)
+                    "last_activity": datetime.now(UTC) - timedelta(seconds=self.session_ttl - ttl)
                 }
         
         return active_sessions

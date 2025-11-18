@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, text
 import structlog
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 
 from app.core.database import get_db
 from app.schemas.response import ApiResponse
@@ -36,7 +36,7 @@ async def health_check(db: AsyncSession = Depends(get_db)):
     start_time = time.time()
     health_status = {
         "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "checks": {}
     }
     
@@ -108,7 +108,7 @@ async def get_system_metrics(db: AsyncSession = Depends(get_db)):
         total_users = result.scalar() or 0
         
         # 活跃用户（最近30天有登录）
-        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        thirty_days_ago = datetime.now(UTC) - timedelta(days=30)
         result = await db.execute(
             select(func.count()).select_from(User).where(User.updated_at >= thirty_days_ago)
         )
@@ -136,7 +136,7 @@ async def get_system_metrics(db: AsyncSession = Depends(get_db)):
         }
         
         # 3. 完成率统计（最近7天）
-        seven_days_ago = datetime.utcnow() - timedelta(days=7)
+        seven_days_ago = datetime.now(UTC) - timedelta(days=7)
         result = await db.execute(
             select(func.count()).select_from(ReminderCompletion).where(
                 ReminderCompletion.scheduled_time >= seven_days_ago
@@ -289,7 +289,7 @@ async def get_growth_metrics(db: AsyncSession = Depends(get_db)):
         # 最近7天的增长数据
         days = []
         for i in range(7):
-            day_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=i)
+            day_start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=i)
             day_end = day_start + timedelta(days=1)
             
             # 新增用户

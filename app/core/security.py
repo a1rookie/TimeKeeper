@@ -3,6 +3,7 @@ Security Utilities
 安全工具：密码哈希、JWT 令牌生成等
 """
 
+from datetime import UTC, datetime
 from datetime import datetime, timedelta
 from typing import Any, Optional
 from fastapi import Depends, HTTPException, status
@@ -62,9 +63,9 @@ def create_access_token(
     to_encode = data.copy()
     
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(UTC) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = datetime.now(UTC) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     
     # 生成唯一的 JTI (JWT ID)
     jti = str(uuid.uuid4())
@@ -73,7 +74,7 @@ def create_access_token(
         "exp": expire,
         "jti": jti,
         "device_type": device_type,
-        "iat": datetime.utcnow()
+        "iat": datetime.now(UTC)
     })
     
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
