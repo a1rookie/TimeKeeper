@@ -31,7 +31,7 @@ async def create_notification_config(
     config: ReminderNotificationCreate,
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
-):
+) -> ApiResponse[ReminderNotificationResponse]:
     """
     为提醒创建通知策略
     
@@ -105,7 +105,7 @@ async def create_notification_config(
         event="notification_config_create"
     )
     
-    return ApiResponse.success(
+    return ApiResponse[ReminderNotificationResponse].success(
         data=ReminderNotificationResponse.model_validate(notification_config),
         message="通知策略创建成功"
     )
@@ -116,7 +116,7 @@ async def get_notification_config(
     reminder_id: int,
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
-):
+) -> ApiResponse[ReminderNotificationResponse]:
     """获取提醒的通知策略"""
     # 检查提醒是否存在且有权限
     user_id = int(current_user.id)  
@@ -139,7 +139,7 @@ async def get_notification_config(
             detail="该提醒尚未配置通知策略"
         )
     
-    return ApiResponse.success(data=ReminderNotificationResponse.model_validate(config))
+    return ApiResponse[ReminderNotificationResponse].success(data=ReminderNotificationResponse.model_validate(config))
 
 
 @router.put("/{reminder_id}/notification-config", response_model=ApiResponse[ReminderNotificationResponse])
@@ -148,7 +148,7 @@ async def update_notification_config(
     config: ReminderNotificationUpdate,
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
-):
+) -> ApiResponse[ReminderNotificationResponse]:
     """更新提醒的通知策略"""
     # 检查提醒权限
     user_id = int(current_user.id)  
@@ -181,7 +181,7 @@ async def update_notification_config(
         event="notification_config_update"
     )
     
-    return ApiResponse.success(
+    return ApiResponse[ReminderNotificationResponse].success(
         data=ReminderNotificationResponse.model_validate(updated_config),
         message="通知策略更新成功"
     )
@@ -192,7 +192,7 @@ async def delete_notification_config(
     reminder_id: int,
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
-):
+) -> ApiResponse[None]:
     """删除提醒的通知策略"""
     # 检查提醒权限
     user_id = int(current_user.id)  
@@ -222,7 +222,7 @@ async def delete_notification_config(
         event="notification_config_delete"
     )
     
-    return ApiResponse.success(message="通知策略已删除")
+    return ApiResponse[None].success(message="通知策略已删除")
 
 
 @router.get("/{reminder_id}/notification-schedule", response_model=ApiResponse[NotificationScheduleResponse])
@@ -230,7 +230,7 @@ async def get_notification_schedule(
     reminder_id: int,
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
-):
+) -> ApiResponse[NotificationScheduleResponse]:
     """
     获取提醒的通知时间表
     
@@ -280,4 +280,4 @@ async def get_notification_schedule(
         event="schedule_query"
     )
     
-    return ApiResponse.success(data=response)
+    return ApiResponse[NotificationScheduleResponse].success(data=response)

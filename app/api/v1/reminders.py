@@ -4,7 +4,7 @@ Reminder API Endpoints
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Form
-from typing import List
+from typing import List, Dict, Any
 import structlog
 
 from app.core.security import get_current_active_user
@@ -41,7 +41,7 @@ async def create_reminder(
     current_user: User = Depends(get_current_active_user),
     reminder_repo: ReminderRepository = Depends(get_reminder_repository),
     db: AsyncSession = Depends(get_db)
-):
+) -> ApiResponse[ReminderResponse]:
     """
     Create a new reminder
     创建新提醒
@@ -83,7 +83,7 @@ async def create_reminder(
         event="reminder_create_success"
     )
     
-    return ApiResponse.success(data=new_reminder, message="创建成功")
+    return ApiResponse[ReminderResponse].success(data=new_reminder, message="创建成功")
 
 
 @router.get("/", response_model=ApiResponse[List[ReminderResponse]])
@@ -93,7 +93,7 @@ async def get_reminders(
     is_active: bool | None = Query(None),
     current_user: User = Depends(get_current_active_user),
     reminder_repo: ReminderRepository = Depends(get_reminder_repository)
-):
+) -> ApiResponse[List[ReminderResponse]]:
     """
     Get user's reminders
     获取用户的提醒列表
@@ -107,7 +107,7 @@ async def get_reminders(
         limit=limit,
         is_active=is_active
     )
-    return ApiResponse.success(data=reminders)
+    return ApiResponse[List[ReminderResponse]].success(data=reminders)
 
 
 @router.get("/{reminder_id}", response_model=ApiResponse[ReminderResponse])
@@ -115,7 +115,7 @@ async def get_reminder(
     reminder_id: int,
     current_user: User = Depends(get_current_active_user),
     reminder_repo: ReminderRepository = Depends(get_reminder_repository)
-):
+) -> ApiResponse[ReminderResponse]:
     """
     Get reminder by ID
     获取提醒详情
@@ -131,7 +131,7 @@ async def get_reminder(
             detail="提醒不存在"
         )
     
-    return ApiResponse.success(data=reminder)
+    return ApiResponse[ReminderResponse].success(data=reminder)
 
 
 @router.put("/{reminder_id}", response_model=ApiResponse[ReminderResponse])
@@ -140,7 +140,7 @@ async def update_reminder(
     reminder_data: ReminderUpdate,
     current_user: User = Depends(get_current_active_user),
     reminder_repo: ReminderRepository = Depends(get_reminder_repository)
-):
+) -> ApiResponse[ReminderResponse]:
     """
     Update reminder
     更新提醒
@@ -181,7 +181,7 @@ async def update_reminder(
         event="reminder_update_success"
     )
     
-    return ApiResponse.success(data=updated_reminder, message="更新成功")
+    return ApiResponse[ReminderResponse].success(data=updated_reminder, message="更新成功")
 
 
 @router.delete("/{reminder_id}", response_model=ApiResponse[None])
@@ -189,7 +189,7 @@ async def delete_reminder(
     reminder_id: int,
     current_user: User = Depends(get_current_active_user),
     reminder_repo: ReminderRepository = Depends(get_reminder_repository)
-):
+) -> ApiResponse[None]:
     """
     Delete reminder
     删除提醒
@@ -228,7 +228,7 @@ async def delete_reminder(
         event="reminder_delete_success"
     )
     
-    return ApiResponse.success(message="删除成功")
+    return ApiResponse[None].success(message="删除成功")
 
 
 @router.post("/{reminder_id}/complete", response_model=ApiResponse[ReminderResponse])
@@ -239,7 +239,7 @@ async def complete_reminder(
     reminder_repo: ReminderRepository = Depends(get_reminder_repository),
     completion_repo: ReminderCompletionRepository = Depends(get_reminder_completion_repository),
     db: AsyncSession = Depends(get_db)
-):
+) -> ApiResponse[ReminderResponse]:
     """
     Mark reminder as completed
     标记提醒为已完成
@@ -293,7 +293,7 @@ async def complete_reminder(
         # 5. 创建新的推送任务
         await create_push_task_for_reminder(db, reminder) 
     
-    return ApiResponse.success(data=reminder, message="已标记为完成")
+    return ApiResponse[ReminderResponse].success(data=reminder, message="已标记为完成")
 
 
 @router.post("/{reminder_id}/uncomplete", response_model=ApiResponse[ReminderResponse])
@@ -302,7 +302,7 @@ async def uncomplete_reminder(
     current_user: User = Depends(get_current_active_user),
     reminder_repo: ReminderRepository = Depends(get_reminder_repository),
     completion_repo: ReminderCompletionRepository = Depends(get_reminder_completion_repository)
-):
+) -> ApiResponse[ReminderResponse]:
     """
     Mark reminder as uncompleted
     取消提醒完成状态
@@ -324,7 +324,7 @@ async def uncomplete_reminder(
     # 3. 删除最新的完成记录
     await completion_repo.delete_latest(reminder_id)
     
-    return ApiResponse.success(data=reminder, message="已取消完成状态")
+    return ApiResponse[ReminderResponse].success(data=reminder, message="已取消完成状态")
 
 
 @router.get("/{reminder_id}/completions", response_model=ApiResponse[List[ReminderCompletionResponse]])
@@ -335,7 +335,7 @@ async def get_reminder_completions(
     current_user: User = Depends(get_current_active_user),
     reminder_repo: ReminderRepository = Depends(get_reminder_repository),
     completion_repo: ReminderCompletionRepository = Depends(get_reminder_completion_repository)
-):
+) -> ApiResponse[List[ReminderCompletionResponse]]:
     """
     Get reminder completion history
     获取提醒完成历史记录
@@ -353,7 +353,7 @@ async def get_reminder_completions(
     
     # 获取完成记录
     completions = await completion_repo.get_by_reminder(reminder_id, skip, limit)
-    return ApiResponse.success(data=completions)
+    return ApiResponse[List[ReminderCompletionResponse]].success(data=completions)
 
 
 @router.post("/voice", response_model=ApiResponse[ReminderResponse], status_code=status.HTTP_201_CREATED)
@@ -364,7 +364,7 @@ async def create_voice_reminder(
     current_user: User = Depends(get_current_active_user),
     reminder_repo: ReminderRepository = Depends(get_reminder_repository),
     db: AsyncSession = Depends(get_db)
-):
+) -> ApiResponse[ReminderResponse]:
     """
     Create reminder from voice input
     从语音输入创建提醒
@@ -426,7 +426,7 @@ async def create_voice_reminder(
         # 2. 意图理解（NLU）
         try:
             nlu_service = get_nlu_service()
-            user_context = {
+            user_context: Dict[str, Any] = {
                 "user_timezone": "Asia/Shanghai",  # 可从用户配置读取
                 "user_id": current_user.id
             }
@@ -493,7 +493,7 @@ async def create_voice_reminder(
             event="voice_reminder_success"
         )
         
-        return ApiResponse.success(
+        return ApiResponse[ReminderResponse].success(
             data=ReminderResponse.model_validate(new_reminder),
             message=f"语音提醒创建成功（识别置信度: {parsed_intent.get('confidence', 'N/A')}）"
         )
@@ -519,7 +519,7 @@ async def create_quick_reminder(
     current_user: User = Depends(get_current_active_user),
     reminder_repo: ReminderRepository = Depends(get_reminder_repository),
     db: AsyncSession = Depends(get_db)
-):
+) -> ApiResponse[ReminderResponse]:
     """
     Create reminder from template
     从模板快速创建提醒
@@ -621,7 +621,7 @@ async def create_quick_reminder(
         )
         
         # 构建提醒数据（优先使用自定义数据）
-        custom_data = quick_data.custom_data or {}
+        custom_data: Dict[str, Any] = quick_data.custom_data or {}
         
         # 首次提醒时间必须提供
         if "first_remind_time" not in custom_data:
@@ -689,7 +689,7 @@ async def create_quick_reminder(
             event="quick_reminder_success"
         )
         
-        return ApiResponse.success(
+        return ApiResponse[ReminderResponse].success(
             data=ReminderResponse.model_validate(new_reminder),
             message=f"从模板「{template.name}」创建提醒成功"
         )

@@ -3,6 +3,7 @@ Family Group Repository
 家庭组数据访问层
 """
 from collections.abc import Sequence
+from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy import and_
@@ -60,7 +61,7 @@ class FamilyGroupRepository:
         result = await self.db.execute(stmt)
         return result.scalars().all()
     
-    async def update(self, group_id: int, **kwargs) -> FamilyGroup | None:
+    async def update(self, group_id: int, **kwargs: Any) -> FamilyGroup | None:
         """更新家庭组信息"""
         group = await self.get_by_id(group_id)
         if not group:

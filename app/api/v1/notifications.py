@@ -2,7 +2,7 @@
 Family Notification API
 家庭通知的 API 路由
 """
-from typing import List
+from typing import List, Dict
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 import structlog
@@ -26,7 +26,7 @@ async def get_my_notifications(
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
-):
+) -> ApiResponse[List[FamilyNotificationResponse]]:
     """
     获取我的通知列表
     """
@@ -47,7 +47,7 @@ async def get_my_notifications(
         event="notifications_retrieved"
     )
     
-    return ApiResponse.success(data=[
+    return ApiResponse[List[FamilyNotificationResponse]].success(data=[
         FamilyNotificationResponse.model_validate(n) for n in notifications
     ])
 
@@ -56,7 +56,7 @@ async def get_my_notifications(
 async def get_notification_stats(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
-):
+) -> ApiResponse[NotificationStats]:
     """
     获取通知统计信息
     """
@@ -69,7 +69,7 @@ async def get_notification_stats(
     )
     unread_count = await notification_repo.get_unread_count(user_id=user_id)
     
-    return ApiResponse.success(data=NotificationStats(
+    return ApiResponse[NotificationStats].success(data=NotificationStats(
         total_count=len(all_notifications),
         unread_count=unread_count
     ))
@@ -80,7 +80,7 @@ async def mark_notification_as_read(
     notification_id: int,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
-):
+) -> ApiResponse[FamilyNotificationResponse]:
     """
     标记通知为已读
     """
@@ -110,7 +110,7 @@ async def mark_notification_as_read(
             user_id=current_user.id,
             event="notification_read"
         )
-        return ApiResponse.success(
+        return ApiResponse[FamilyNotificationResponse].success(
             data=FamilyNotificationResponse.model_validate(notification),
             message="已标记为已读"
         )
@@ -121,11 +121,11 @@ async def mark_notification_as_read(
     )
 
 
-@router.post("/read-all", response_model=ApiResponse[dict])
+@router.post("/read-all", response_model=ApiResponse[Dict[str, int]])
 async def mark_all_as_read(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
-):
+) -> ApiResponse[Dict[str, int]]:
     """
     标记所有通知为已读
     """
@@ -140,7 +140,7 @@ async def mark_all_as_read(
         event="notifications_bulk_read"
     )
     
-    return ApiResponse.success(
+    return ApiResponse[Dict[str, int]].success(
         data={"marked_count": count},
         message=f"已标记 {count} 条通知为已读"
     )
@@ -151,7 +151,7 @@ async def delete_notification(
     notification_id: int,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
-):
+) -> ApiResponse[None]:
     """
     删除通知
     """
@@ -181,7 +181,7 @@ async def delete_notification(
             user_id=current_user.id,
             event="notification_delete"
         )
-        return ApiResponse.success(message="通知已删除")
+        return ApiResponse[None].success(message="通知已删除")
     
     raise HTTPException(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

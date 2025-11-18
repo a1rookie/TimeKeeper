@@ -3,7 +3,7 @@ Reminder Repository
 提醒数据访问层 - 异步版本
 """
 
-from typing import List
+from typing import List, Any
 from collections.abc import Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, select
@@ -95,8 +95,9 @@ class ReminderRepository:
         await self.db.commit()
         await self.db.refresh(new_reminder)
         return new_reminder
-    
-    async def update(self, reminder: Reminder, **kwargs) -> Reminder:
+
+
+    async def update(self, reminder: Reminder, **kwargs: Any) -> Reminder:
         """更新提醒"""
         for field, value in kwargs.items():
             if hasattr(reminder, field) and value is not None:

@@ -2,7 +2,7 @@
 Monitoring and Health Check API
 运维监控和健康检查 API
 """
-from typing import Dict, Any
+from typing import Dict, Any, List, Tuple
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, text
@@ -24,7 +24,7 @@ router = APIRouter(prefix="/monitoring", tags=["Monitoring"])
 
 
 @router.get("/health", response_model=ApiResponse[Dict[str, Any]])
-async def health_check(db: AsyncSession = Depends(get_db)):
+async def health_check(db: AsyncSession = Depends(get_db)) -> ApiResponse[Dict[str, Any]]:
     """
     健康检查端点
     
@@ -34,7 +34,7 @@ async def health_check(db: AsyncSession = Depends(get_db)):
     - 系统时间
     """
     start_time = time.time()
-    health_status = {
+    health_status: Dict[str, Any] = {
         "status": "healthy",
         "timestamp": datetime.now(UTC).isoformat(),
         "checks": {}
@@ -85,11 +85,11 @@ async def health_check(db: AsyncSession = Depends(get_db)):
         event="health_check_complete"
     )
     
-    return ApiResponse.success(data=health_status)
+    return ApiResponse[Dict[str, Any]].success(data=health_status)
 
 
 @router.get("/metrics", response_model=ApiResponse[Dict[str, Any]])
-async def get_system_metrics(db: AsyncSession = Depends(get_db)):
+async def get_system_metrics(db: AsyncSession = Depends(get_db)) -> ApiResponse[Dict[str, Any]]:
     """
     系统指标统计
     
@@ -100,7 +100,7 @@ async def get_system_metrics(db: AsyncSession = Depends(get_db)):
     - 家庭组统计
     - 模板统计
     """
-    metrics = {}
+    metrics: Dict[str, Any] = {}
     
     try:
         # 1. 用户统计
@@ -204,7 +204,7 @@ async def get_system_metrics(db: AsyncSession = Depends(get_db)):
             event="metrics_collected"
         )
         
-        return ApiResponse.success(data=metrics)
+        return ApiResponse[Dict[str, Any]].success(data=metrics)
         
     except Exception as e:
         logger.error("metrics_error", error=str(e), event="metrics_collection_failed")
@@ -215,7 +215,7 @@ async def get_system_metrics(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/metrics/performance", response_model=ApiResponse[Dict[str, Any]])
-async def get_performance_metrics(db: AsyncSession = Depends(get_db)):
+async def get_performance_metrics(db: AsyncSession = Depends(get_db)) -> ApiResponse[Dict[str, Any]]:
     """
     性能指标
     
@@ -224,11 +224,11 @@ async def get_performance_metrics(db: AsyncSession = Depends(get_db)):
     - 各表记录数
     - 数据库大小估算
     """
-    performance = {}
+    performance: Dict[str, Any] = {}
     
     try:
         # 1. 各表查询性能测试
-        tables = [
+        tables: List[Tuple[str, Any]] = [
             ("users", User),
             ("reminders", Reminder),
             ("reminder_completions", ReminderCompletion),
@@ -236,7 +236,7 @@ async def get_performance_metrics(db: AsyncSession = Depends(get_db)):
             ("template_shares", TemplateShare)
         ]
         
-        table_stats = {}
+        table_stats: Dict[str, Dict[str, Any]] = {}
         for table_name, model in tables:
             start_time = time.time()
             result = await db.execute(select(func.count()).select_from(model))
@@ -263,7 +263,7 @@ async def get_performance_metrics(db: AsyncSession = Depends(get_db)):
             event="performance_measured"
         )
         
-        return ApiResponse.success(data=performance)
+        return ApiResponse[Dict[str, Any]].success(data=performance)
         
     except Exception as e:
         logger.error("performance_metrics_error", error=str(e), event="performance_measurement_failed")
@@ -274,7 +274,7 @@ async def get_performance_metrics(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/metrics/growth", response_model=ApiResponse[Dict[str, Any]])
-async def get_growth_metrics(db: AsyncSession = Depends(get_db)):
+async def get_growth_metrics(db: AsyncSession = Depends(get_db)) -> ApiResponse[Dict[str, Any]]:
     """
     增长指标
     
@@ -283,11 +283,11 @@ async def get_growth_metrics(db: AsyncSession = Depends(get_db)):
     - 每日新增提醒
     - 每日完成率趋势
     """
-    growth = {}
+    growth: Dict[str, Any] = {}
     
     try:
         # 最近7天的增长数据
-        days = []
+        days: List[Dict[str, Any]] = []
         for i in range(7):
             day_start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=i)
             day_end = day_start + timedelta(days=1)
@@ -343,7 +343,7 @@ async def get_growth_metrics(db: AsyncSession = Depends(get_db)):
             event="growth_analyzed"
         )
         
-        return ApiResponse.success(data=growth)
+        return ApiResponse[Dict[str, Any]].success(data=growth)
         
     except Exception as e:
         logger.error("growth_metrics_error", error=str(e), event="growth_analysis_failed")
