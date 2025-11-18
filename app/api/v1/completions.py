@@ -33,7 +33,7 @@ async def complete_reminder(
     data: ReminderCompletionCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
-):
+) -> ApiResponse[ReminderCompletionResponse]:
     """
     确认完成提醒
     - 记录完成时间和状态
@@ -151,7 +151,7 @@ async def complete_reminder(
             event="family_reminder_completion"
         )
     
-    return ApiResponse.success(data=ReminderCompletionResponse(
+    return ApiResponse[ReminderCompletionResponse].success(data=ReminderCompletionResponse(
         id=int(completion.id),  
         reminder_id=int(completion.reminder_id),  
         user_id=int(completion.user_id),  
@@ -169,7 +169,7 @@ async def get_reminder_completions(
     limit: int = Query(50, ge=1, le=100, description="返回记录数量"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
-):
+) -> ApiResponse[List[ReminderCompletionResponse]]:
     """
     查询提醒的完成记录
     """
@@ -207,7 +207,7 @@ async def get_reminder_completions(
     
     completions = await completion_repo.get_by_reminder(reminder_id, limit=limit)
     
-    return ApiResponse.success(data=[
+    return ApiResponse[List[ReminderCompletionResponse]].success(data=[
         ReminderCompletionResponse(
             id=int(c.id),  
             reminder_id=int(c.reminder_id),  
@@ -226,7 +226,7 @@ async def get_my_completions(
     days: int = Query(30, ge=1, le=365, description="查询天数"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
-):
+) -> ApiResponse[List[ReminderCompletionResponse]]:
     """
     查询我的完成记录
     """
@@ -237,7 +237,7 @@ async def get_my_completions(
     since = datetime.now(UTC) - timedelta(days=days)
     completions = await completion_repo.get_by_user_since(user_id, since, limit=1000)
     
-    return ApiResponse.success(data=[
+    return ApiResponse[List[ReminderCompletionResponse]].success(data=[
         ReminderCompletionResponse(
             id=int(c.id),  
             reminder_id=int(c.reminder_id),  
@@ -257,7 +257,7 @@ async def get_reminder_stats(
     days: int = Query(30, ge=1, le=365, description="统计天数"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
-):
+) -> ApiResponse[ReminderStats]:
     """
     查询提醒的统计信息
     """
@@ -328,7 +328,7 @@ async def get_reminder_stats(
         if delayed_records else 0
     )
     
-    return ApiResponse.success(data=ReminderStats(
+    return ApiResponse[ReminderStats].success(data=ReminderStats(
         reminder_id=reminder_id,
         total_count=total_count,
         completed_count=completed_count,
@@ -344,7 +344,7 @@ async def get_my_stats(
     days: int = Query(30, ge=1, le=365, description="统计天数"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
-):
+) -> ApiResponse[UserStats]:
     """
     查询我的整体统计信息
     """
@@ -378,7 +378,7 @@ async def get_my_stats(
         if delayed_completions else 0
     )
     
-    return ApiResponse.success(data=UserStats(
+    return ApiResponse[UserStats].success(data=UserStats(
         user_id=user_id,
         total_reminders=len(all_reminders),
         active_reminders=len(active_reminders),

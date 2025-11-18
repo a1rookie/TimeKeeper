@@ -2,7 +2,7 @@
 Template API
 模板系统的 API 路由
 """
-from typing import List
+from typing import List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 import structlog
@@ -25,6 +25,10 @@ from app.schemas.template import (
     TemplateUsageCreate,
     TemplateUsageResponse
 )
+from app.models.reminder_template import ReminderTemplate
+from app.models.user_custom_template import UserCustomTemplate
+from app.models.template_share import TemplateShare
+from app.models.template_usage_record import TemplateUsageRecord
 from app.repositories.reminder_template_repository import ReminderTemplateRepository
 from app.repositories.user_custom_template_repository import UserCustomTemplateRepository
 from app.repositories.template_share_repository import TemplateShareRepository
@@ -35,7 +39,7 @@ from app.repositories.family_member_repository import FamilyMemberRepository
 router = APIRouter()
 
 
-def _to_system_template_response(t) -> ReminderTemplateResponse:
+def _to_system_template_response(t: ReminderTemplate) -> ReminderTemplateResponse:
     """将 ReminderTemplate 模型转换为响应对象"""
     return ReminderTemplateResponse(
         id=int(t.id),  
@@ -51,7 +55,7 @@ def _to_system_template_response(t) -> ReminderTemplateResponse:
     )
 
 
-def _to_custom_template_response(t) -> UserCustomTemplateResponse:
+def _to_custom_template_response(t: UserCustomTemplate) -> UserCustomTemplateResponse:
     """将 UserCustomTemplate 模型转换为响应对象"""
     return UserCustomTemplateResponse(
         id=int(t.id),  
@@ -67,7 +71,7 @@ def _to_custom_template_response(t) -> UserCustomTemplateResponse:
     )
 
 
-def _to_share_response(s, owner_nickname=None, template_name=None) -> TemplateShareResponse:
+def _to_share_response(s: TemplateShare, owner_nickname=None, template_name=None) -> TemplateShareResponse:
     """将 TemplateShare 模型转换为响应对象"""
     return TemplateShareResponse(
         id=int(s.id),  
@@ -87,7 +91,7 @@ def _to_share_response(s, owner_nickname=None, template_name=None) -> TemplateSh
     )
 
 
-def _to_usage_response(u) -> TemplateUsageResponse:
+def _to_usage_response(u: TemplateUsageRecord) -> TemplateUsageResponse:
     """将 TemplateUsageRecord 模型转换为响应对象"""
     return TemplateUsageResponse(
         id=int(u.id),  
@@ -105,7 +109,7 @@ def _to_usage_response(u) -> TemplateUsageResponse:
 async def list_system_templates(
     category: str | None = Query(None, description="按分类筛选"),
     db: AsyncSession = Depends(get_db)
-):
+) -> ApiResponse[List[ReminderTemplateResponse]]:
     """
     获取系统模板列表
     - 可按分类筛选
@@ -118,14 +122,14 @@ async def list_system_templates(
     else:
         templates = await template_repo.get_all_active()
     
-    return ApiResponse.success(data=[_to_system_template_response(t) for t in templates])
+    return ApiResponse[List[ReminderTemplateResponse]].success(data=[_to_system_template_response(t) for t in templates])
 
 
 @router.get("/templates/system/{template_id}", response_model=ApiResponse[ReminderTemplateResponse])
 async def get_system_template(
     template_id: int,
     db: AsyncSession = Depends(get_db)
-):
+) -> ApiResponse[ReminderTemplateResponse]:
     """获取系统模板详情"""
     template_repo = ReminderTemplateRepository(db)
     template = await template_repo.get_by_id(template_id)
@@ -136,19 +140,19 @@ async def get_system_template(
             detail="系统模板不存在"
         )
     
-    return ApiResponse.success(data=_to_system_template_response(template))
+    return ApiResponse[ReminderTemplateResponse].success(data=_to_system_template_response(template))
 
 
 @router.get("/templates/system/popular", response_model=ApiResponse[List[ReminderTemplateResponse]])
 async def get_popular_templates(
     limit: int = Query(10, ge=1, le=50, description="返回数量"),
     db: AsyncSession = Depends(get_db)
-):
+) -> ApiResponse[List[ReminderTemplateResponse]]:
     """获取热门系统模板"""
     template_repo = ReminderTemplateRepository(db)
     templates = await template_repo.get_popular(limit=limit)
     
-    return ApiResponse.success(data=[_to_system_template_response(t) for t in templates])
+    return ApiResponse[List[ReminderTemplateResponse]].success(data=[_to_system_template_response(t) for t in templates])
 
 
 # ==================== 用户自定义模板 ====================
@@ -158,7 +162,7 @@ async def create_custom_template(
     data: UserCustomTemplateCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
-):
+) -> ApiResponse[UserCustomTemplateResponse]:
     """
     创建用户自定义模板
     - 可以基于系统模板创建
@@ -189,20 +193,20 @@ async def create_custom_template(
         created_from_template_id=data.created_from_template_id
     )
     
-    return ApiResponse.success(data=_to_custom_template_response(template))
+    return ApiResponse[UserCustomTemplateResponse].success(data=_to_custom_template_response(template))
 
 
 @router.get("/templates/custom", response_model=ApiResponse[List[UserCustomTemplateResponse]])
 async def list_my_templates(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
-):
+) -> ApiResponse[List[UserCustomTemplateResponse]]:
     """获取我的自定义模板列表"""
     user_id = int(current_user.id)  
     template_repo = UserCustomTemplateRepository(db)
     templates = await template_repo.get_user_templates(user_id)
     
-    return ApiResponse.success(data=[_to_custom_template_response(t) for t in templates
+    return ApiResponse[List[UserCustomTemplateResponse]].success(data=[_to_custom_template_response(t) for t in templates
     ])
 
 
@@ -212,7 +216,7 @@ async def update_custom_template(
     data: UserCustomTemplateUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
-):
+) -> ApiResponse[UserCustomTemplateResponse]:
     """更新用户自定义模板"""
     template_repo = UserCustomTemplateRepository(db)
     
@@ -236,7 +240,7 @@ async def update_custom_template(
     updated_template = await template_repo.update(template_id, **update_data)
     
     if updated_template:
-        return ApiResponse.success(data=_to_custom_template_response(updated_template))
+        return ApiResponse[UserCustomTemplateResponse].success(data=_to_custom_template_response(updated_template))
     else:
         raise HTTPException(status_code=404, detail="模板不存在")
 
@@ -246,7 +250,7 @@ async def delete_custom_template(
     template_id: int,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
-):
+) -> None:
     """删除用户自定义模板"""
     template_repo = UserCustomTemplateRepository(db)
     
@@ -277,7 +281,7 @@ async def share_template(
     data: TemplateShareCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
-):
+) -> ApiResponse[TemplateShareResponse]:
     """
     分享模板
     - 支持公开分享、家庭分享、链接分享
@@ -331,7 +335,7 @@ async def share_template(
     
     owner_nickname = str(current_user.nickname) if current_user.nickname else None  
     template_name = str(template.name) if template.name else None  
-    return ApiResponse.success(data=_to_share_response(share, owner_nickname, template_name))
+    return ApiResponse[TemplateShareResponse].success(data=_to_share_response(share, owner_nickname, template_name))
 
 
 @router.get("/templates/share/public", response_model=ApiResponse[List[TemplateShareResponse]])
@@ -339,12 +343,12 @@ async def list_public_shares(
     limit: int = Query(50, ge=1, le=100, description="返回数量"),
     offset: int = Query(0, ge=0, description="偏移量"),
     db: AsyncSession = Depends(get_db)
-):
+) -> ApiResponse[List[TemplateShareResponse]]:
     """获取公开分享的模板广场"""
     share_repo = TemplateShareRepository(db)
     shares = await share_repo.get_public_shares(limit=limit, offset=offset)
     
-    return ApiResponse.success(data=[_to_share_response(s) for s in shares])
+    return ApiResponse[List[TemplateShareResponse]].success(data=[_to_share_response(s) for s in shares])
 
 
 @router.get("/templates/share/{share_code}", response_model=ApiResponse[TemplateShareDetail])
@@ -352,7 +356,7 @@ async def get_share_detail(
     share_code: str,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
-):
+) -> ApiResponse[TemplateShareDetail]:
     """
     获取分享详情
     - 包含完整模板信息
@@ -394,7 +398,7 @@ async def get_share_detail(
     # 构造响应
     share_response = _to_share_response(share)
     
-    return ApiResponse.success(data=TemplateShareDetail(
+    return ApiResponse[TemplateShareDetail].success(data=TemplateShareDetail(
         **share_response.model_dump(),
         template=UserCustomTemplateResponse(
             id=int(share.template.id),  
@@ -418,7 +422,7 @@ async def use_shared_template(
     data: TemplateUsageCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
-):
+) -> ApiResponse[TemplateUsageResponse]:
     """
     使用分享的模板
     - 记录使用并可选评价
@@ -446,7 +450,7 @@ async def use_shared_template(
         feedback_comment=data.feedback_comment
     )
     
-    return ApiResponse.success(data=_to_usage_response(usage))
+    return ApiResponse[TemplateUsageResponse].success(data=_to_usage_response(usage))
 
 
 @router.post("/templates/share/{share_id}/like", status_code=status.HTTP_201_CREATED)
@@ -454,7 +458,7 @@ async def like_template(
     share_id: int,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
-):
+) -> ApiResponse[Dict[str, Any]]:
     """点赞模板"""
     share_repo = TemplateShareRepository(db)
     like_repo = TemplateLikeRepository(db)
@@ -478,7 +482,7 @@ async def like_template(
     # 增加点赞数
     await share_repo.increment_like(share_id)
     
-    return ApiResponse.success(data={"message": "点赞成功"})
+    return ApiResponse[Dict[str, Any]].success(data={"message": "点赞成功"})
 
 
 @router.delete("/templates/share/{share_id}/like", status_code=status.HTTP_204_NO_CONTENT)
@@ -486,7 +490,7 @@ async def unlike_template(
     share_id: int,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
-):
+) -> None:
     """取消点赞"""
     share_repo = TemplateShareRepository(db)
     like_repo = TemplateLikeRepository(db)
@@ -514,7 +518,7 @@ async def get_template_marketplace(
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db)
-):
+) -> ApiResponse[List[TemplateShareDetail]]:
     """
     模板市场 - 公开模板列表
     
@@ -533,7 +537,7 @@ async def get_template_marketplace(
     # 过滤和排序
     if category:
         # 需要加载模板信息以过滤分类
-        filtered_shares = []
+        filtered_shares: List[TemplateShare] = []
         for share in shares:
             template_id = int(share.template_id) if share.template_id else None  
             if template_id:  # 系统模板
@@ -563,7 +567,7 @@ async def get_template_marketplace(
     shares = shares[:limit]
     
     # 构建详细响应
-    result = []
+    result: List[TemplateShareDetail] = []
     for share in shares:
         template_id = int(share.template_id) if share.template_id else None  
         if template_id:
@@ -592,7 +596,7 @@ async def get_template_marketplace(
             created_at=share.created_at  
         ))
     
-    return ApiResponse.success(data=result, message=f"找到 {len(result)} 个公开模板")
+    return ApiResponse[List[TemplateShareDetail]].success(data=result, message=f"找到 {len(result)} 个公开模板")
 
 
 @router.get("/marketplace/search", response_model=ApiResponse[List[TemplateShareDetail]])
@@ -600,7 +604,7 @@ async def search_marketplace_templates(
     keyword: str = Query(..., min_length=1, description="搜索关键词"),
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db)
-):
+) -> ApiResponse[List[TemplateShareDetail]]:
     """
     搜索模板市场
     """
@@ -612,7 +616,7 @@ async def search_marketplace_templates(
     all_shares = await share_repo.get_public_shares(limit=500, offset=0)
     
     # 搜索匹配的模板
-    matched_shares = []
+    matched_shares: List[TemplateShare] = []
     for share in all_shares:
         # 检查分享标题和描述
         share_title = str(share.share_title) if share.share_title else ""  
@@ -641,7 +645,7 @@ async def search_marketplace_templates(
     matched_shares = matched_shares[:limit]
     
     # 构建响应
-    result = []
+    result: List[TemplateShareDetail] = []
     for share in matched_shares:
         template_id = int(share.template_id) if share.template_id else None  
         if template_id:
@@ -668,13 +672,13 @@ async def search_marketplace_templates(
             created_at=share.created_at  
         ))
     
-    return ApiResponse.success(data=result, message=f"找到 {len(result)} 个匹配模板")
+    return ApiResponse[List[TemplateShareDetail]].success(data=result, message=f"找到 {len(result)} 个匹配模板")
 
 
-@router.get("/marketplace/categories", response_model=ApiResponse[List[dict]])
+@router.get("/marketplace/categories", response_model=ApiResponse[List[Dict[str, int]]])
 async def get_marketplace_categories(
     db: AsyncSession = Depends(get_db)
-):
+) -> ApiResponse[List[Dict[str, int]]]:
     """
     获取模板市场分类统计
     """
@@ -686,7 +690,7 @@ async def get_marketplace_categories(
     all_shares = await share_repo.get_public_shares(limit=1000, offset=0)
     
     # 统计各分类数量
-    category_stats = {}
+    category_stats: Dict[str, int] = {}
     for share in all_shares:
         template_id = int(share.template_id) if share.template_id else None  
         if template_id:
@@ -702,9 +706,9 @@ async def get_marketplace_categories(
         category_stats[category] += 1
     
     # 转换为列表
-    result = [
+    result: List[Dict[str, int]] = [
         {"category": cat, "count": count}
         for cat, count in sorted(category_stats.items(), key=lambda x: x[1], reverse=True)
     ]
     
-    return ApiResponse.success(data=result)
+    return ApiResponse[List[Dict[str, int]]].success(data=result)

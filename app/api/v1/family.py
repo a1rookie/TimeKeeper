@@ -23,13 +23,15 @@ from app.schemas.family import (
     FamilyMemberUpdate,
     FamilyMemberResponse
 )
+from app.models.family_group import FamilyGroup
+from app.models.family_member import FamilyMember
 from app.repositories.family_group_repository import FamilyGroupRepository
 from app.repositories.family_member_repository import FamilyMemberRepository
 
 router = APIRouter()
 
 
-def _to_group_response(g, member_count: int) -> FamilyGroupResponse:
+def _to_group_response(g: FamilyGroup, member_count: int) -> FamilyGroupResponse:
     """将 FamilyGroup 模型转换为响应对象"""
     return FamilyGroupResponse(
         id=int(g.id),  
@@ -43,7 +45,7 @@ def _to_group_response(g, member_count: int) -> FamilyGroupResponse:
     )
 
 
-def _to_member_response(m) -> FamilyMemberResponse:
+def _to_member_response(m: FamilyMember) -> FamilyMemberResponse:
     """将 FamilyMember 模型转换为响应对象"""
     return FamilyMemberResponse(
         id=int(m.id),  
@@ -65,7 +67,7 @@ async def create_family_group(
     data: FamilyGroupCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
-):
+) -> ApiResponse[FamilyGroupDetail]:
     """
     创建家庭组
     - 自动将创建者添加为管理员
@@ -124,14 +126,14 @@ async def create_family_group(
         members=[_to_member_response(m) for m in members]
     )
     
-    return ApiResponse.success(data=group_detail, message="创建成功")
+    return ApiResponse[FamilyGroupDetail].success(data=group_detail, message="创建成功")
 
 
 @router.get("/groups", response_model=ApiResponse[List[FamilyGroupResponse]])
 async def list_my_groups(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
-):
+) -> ApiResponse[List[FamilyGroupResponse]]:
     """
     查询我的家庭组列表（包括创建的和加入的）
     
@@ -144,13 +146,13 @@ async def list_my_groups(
     user_id = int(current_user.id)  
     groups = await group_repo.get_user_groups(user_id)
     
-    group_list = []
+    group_list: List[FamilyGroupResponse] = list()
     for g in groups:
         gid = int(g.id)  
         members = await member_repo.get_group_members(gid)
         group_list.append(_to_group_response(g, len(members)))
     
-    return ApiResponse.success(data=group_list)
+    return ApiResponse[List[FamilyGroupResponse]].success(data=group_list)
 
 
 @router.get("/groups/{group_id}", response_model=ApiResponse[FamilyGroupDetail])
@@ -158,7 +160,7 @@ async def get_group_detail(
     group_id: int,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
-):
+) -> ApiResponse[FamilyGroupDetail]:
     """
     查询家庭组详情（包含成员列表）
     
@@ -198,7 +200,7 @@ async def get_group_detail(
         members=[_to_member_response(m) for m in members]
     )
     
-    return ApiResponse.success(data=group_detail)
+    return ApiResponse[FamilyGroupDetail].success(data=group_detail)
 
 
 @router.put("/groups/{group_id}", response_model=ApiResponse[FamilyGroupResponse])
@@ -207,7 +209,7 @@ async def update_group(
     data: FamilyGroupUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
-):
+) -> ApiResponse[FamilyGroupResponse]:
     """
     更新家庭组信息（仅管理员可操作）
     
@@ -241,7 +243,7 @@ async def update_group(
     
     group_response = _to_group_response(group, member_count)
     
-    return ApiResponse.success(data=group_response, message="更新成功")
+    return ApiResponse[FamilyGroupResponse].success(data=group_response, message="更新成功")
 
 
 @router.delete("/groups/{group_id}", response_model=ApiResponse[None])
@@ -249,7 +251,7 @@ async def delete_group(
     group_id: int,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
-):
+) -> ApiResponse[None]:
     """
     停用家庭组（仅创建者可操作）
     
@@ -275,7 +277,7 @@ async def delete_group(
         )
     
     await group_repo.deactivate(group_id)
-    return ApiResponse.success(message="停用成功")
+    return ApiResponse[None].success(message="停用成功")
 
 
 # ==================== 成员管理 ====================
@@ -286,7 +288,7 @@ async def add_member(
     data: FamilyMemberAdd,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
-):
+) -> ApiResponse[FamilyMemberResponse]:
     """
     添加成员到家庭组（仅管理员可操作）
     
@@ -330,7 +332,7 @@ async def add_member(
     
     member_response = _to_member_response(member)
     
-    return ApiResponse.success(data=member_response, message="添加成功")
+    return ApiResponse[FamilyMemberResponse].success(data=member_response, message="添加成功")
 
 
 @router.put("/groups/{group_id}/members/{member_id}", response_model=ApiResponse[FamilyMemberResponse])
@@ -340,7 +342,7 @@ async def update_member(
     data: FamilyMemberUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
-):
+) -> ApiResponse[FamilyMemberResponse]:
     """
     更新成员信息（管理员可更新角色，成员可更新自己的昵称）
     
@@ -395,7 +397,7 @@ async def update_member(
     
     if updated_member:
         member_response = _to_member_response(updated_member)
-        return ApiResponse.success(data=member_response, message="更新成功")
+        return ApiResponse[FamilyMemberResponse].success(data=member_response, message="更新成功")
     else:
         raise HTTPException(status_code=404, detail="成员不存在")
 
@@ -406,7 +408,7 @@ async def remove_member(
     member_id: int,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
-):
+) -> ApiResponse[None]:
     """
     移除成员（管理员可移除其他成员，成员可退出）
     
@@ -459,4 +461,4 @@ async def remove_member(
         )
     
     await member_repo.remove_member(group_id, target_user_id)
-    return ApiResponse.success(message="移除成功")
+    return ApiResponse[None].success(message="移除成功")

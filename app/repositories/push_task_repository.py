@@ -3,7 +3,7 @@ PushTask Repository
 推送任务数据访问层
 """
 
-from typing import List, Tuple
+from typing import Any, List, Tuple, Dict
 from collections.abc import Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, update
@@ -56,7 +56,7 @@ class PushTaskRepository:
         await self.db.refresh(new_task)
         return new_task
 
-    async def update(self, task: PushTask, **update_data) -> PushTask:
+    async def update(self, task: PushTask, **update_data: Any) -> PushTask:
         for k, v in update_data.items():
             setattr(task, k, v)
         await self.db.commit()
@@ -201,9 +201,9 @@ class PushTaskRepository:
         return task
 
     @staticmethod
-    async def get_statistics(db: AsyncSession, user_id: int) -> dict:
+    async def get_statistics(db: AsyncSession, user_id: int) -> Dict[str, Any]:
         # 返回简单统计数据：各状态计数
-        stats = {}
+        stats: Dict[str, Any] = {}
         for status in [PushStatus.PENDING, PushStatus.SENT, PushStatus.FAILED, PushStatus.CANCELLED]:
             stmt = select(func.count()).select_from(PushTask).where(
                 and_(PushTask.user_id == user_id, PushTask.status == status)

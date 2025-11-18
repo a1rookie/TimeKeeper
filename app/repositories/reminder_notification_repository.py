@@ -2,7 +2,7 @@
 Reminder Notification Repository
 提醒通知策略数据访问层
 """
-from typing import List
+from typing import List, Any
 from collections.abc import Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -56,7 +56,7 @@ class ReminderNotificationRepository:
     async def update(
         self,
         reminder_id: int,
-        **kwargs
+        **kwargs: Any
     ) -> ReminderNotification | None:
         """更新通知策略"""
         notification = await self.get_by_reminder_id(reminder_id)
