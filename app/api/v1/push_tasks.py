@@ -5,7 +5,6 @@ Push Task API Endpoints
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional
 
 from app.core.database import get_db
 from app.core.security import get_current_active_user
@@ -28,8 +27,8 @@ router = APIRouter(prefix="/push-tasks", tags=["Push"])
 async def list_push_tasks(
     skip: int = Query(0, ge=0, description="跳过记录数"),
     limit: int = Query(20, ge=1, le=100, description="返回记录数"),
-    status: Optional[PushStatus] = Query(None, description="按状态筛选"),
-    reminder_id: Optional[int] = Query(None, description="按提醒ID筛选"),
+    status: PushStatus | None = Query(None, description="按状态筛选"),
+    reminder_id: int | None = Query(None, description="按提醒ID筛选"),
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):

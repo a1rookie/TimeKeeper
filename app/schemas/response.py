@@ -1,7 +1,7 @@
 """
 统一响应格式 Schema
 """
-from typing import Generic, TypeVar, Optional, List
+from typing import Generic, TypeVar, List
 from pydantic import BaseModel, Field
 
 T = TypeVar('T')
@@ -20,7 +20,7 @@ class ApiResponse(BaseModel, Generic[T]):
     """
     code: int = Field(200, description="状态码: 200成功, 4xx客户端错误, 5xx服务器错误")
     message: str = Field("success", description="响应消息")
-    data: Optional[T] = Field(None, description="响应数据")
+    data: T | None = Field(None, description="响应数据")
     
     class Config:
         json_schema_extra = {
@@ -32,7 +32,7 @@ class ApiResponse(BaseModel, Generic[T]):
         }
     
     @classmethod
-    def success(cls, data: Optional[T] = None, message: str = "success") -> "ApiResponse[T]":
+    def success(cls, data: T | None = None, message: str = "success") -> "ApiResponse[T]":
         """
         成功响应
         
@@ -46,7 +46,7 @@ class ApiResponse(BaseModel, Generic[T]):
         return cls(code=200, message=message, data=data)
     
     @classmethod
-    def error(cls, code: int = 400, message: str = "error", data: Optional[T] = None) -> "ApiResponse[T]":
+    def error(cls, code: int = 400, message: str = "error", data: T | None = None) -> "ApiResponse[T]":
         """
         错误响应
         

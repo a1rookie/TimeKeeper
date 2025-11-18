@@ -2,7 +2,7 @@
 Reminder Notification Repository
 提醒通知策略数据访问层
 """
-from typing import Optional, List
+from typing import List
 from collections.abc import Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -23,10 +23,10 @@ class ReminderNotificationRepository:
         advance_days: int = 0,
         advance_notify_interval: int = 1,
         advance_notify_time: str = "09:00",
-        same_day_notifications: Optional[List[str]] = None,
+        same_day_notifications: List[str] | None = None,
         avoid_night_time: bool = True,
         night_time_fallback: str = "09:00",
-        custom_message_template: Optional[str] = None
+        custom_message_template: str | None = None
     ) -> ReminderNotification:
         """创建通知策略"""
         notification = ReminderNotification(

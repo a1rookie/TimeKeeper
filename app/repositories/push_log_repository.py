@@ -3,7 +3,6 @@ Push Log Repository
 推送日志数据访问层
 """
 from collections.abc import Sequence
-from typing import Optional
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -22,11 +21,11 @@ class PushLogRepository:
         push_task_id: int,
         channel: str,
         status: str,
-        request_data: Optional[dict] = None,
-        response_data: Optional[dict] = None,
-        error_message: Optional[str] = None,
-        user_action: Optional[str] = None,
-        response_time_seconds: Optional[int] = None
+        request_data: dict | None = None,
+        response_data: dict | None = None,
+        error_message: str | None = None,
+        user_action: str | None = None,
+        response_time_seconds: int | None = None
     ) -> PushLog:
         """创建推送日志"""
         log = PushLog(

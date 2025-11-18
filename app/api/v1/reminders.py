@@ -4,7 +4,7 @@ Reminder API Endpoints
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Form
-from typing import List, Optional
+from typing import List
 import structlog
 
 from app.core.security import get_current_active_user
@@ -90,7 +90,7 @@ async def create_reminder(
 async def get_reminders(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
-    is_active: Optional[bool] = Query(None),
+    is_active: bool | None = Query(None),
     current_user: User = Depends(get_current_active_user),
     reminder_repo: ReminderRepository = Depends(get_reminder_repository)
 ):
@@ -234,7 +234,7 @@ async def delete_reminder(
 @router.post("/{reminder_id}/complete", response_model=ApiResponse[ReminderResponse])
 async def complete_reminder(
     reminder_id: int,
-    completion_data: Optional[ReminderCompletionCreate] = None,
+    completion_data: ReminderCompletionCreate | None = None,
     current_user: User = Depends(get_current_active_user),
     reminder_repo: ReminderRepository = Depends(get_reminder_repository),
     completion_repo: ReminderCompletionRepository = Depends(get_reminder_completion_repository),
@@ -359,8 +359,8 @@ async def get_reminder_completions(
 @router.post("/voice", response_model=ApiResponse[ReminderResponse], status_code=status.HTTP_201_CREATED)
 async def create_voice_reminder(
     audio_file: UploadFile = File(..., description="音频文件（支持 PCM/WAV/MP3 等格式）"),
-    user_id: Optional[int] = Form(None, description="用户ID（可选，从token获取）"),
-    family_id: Optional[int] = Form(None, description="家庭ID（可选）"),
+    user_id: int | None = Form(None, description="用户ID（可选，从token获取）"),
+    family_id: int | None = Form(None, description="家庭ID（可选）"),
     current_user: User = Depends(get_current_active_user),
     reminder_repo: ReminderRepository = Depends(get_reminder_repository),
     db: AsyncSession = Depends(get_db)

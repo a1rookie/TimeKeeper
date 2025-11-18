@@ -8,7 +8,7 @@ SmsService 抽象与 Aliyun 实现
 - 记录所有短信到数据库用于审计和防刷
 """
 from __future__ import annotations
-from typing import Optional, Tuple
+from typing import Tuple
 import random
 import structlog
 from datetime import datetime, timedelta
@@ -119,10 +119,10 @@ def get_sms_service() -> SmsService:
 async def generate_and_store_code(
     phone: str,
     purpose: str = 'register',
-    ip_address: Optional[str] = None,
-    user_agent: Optional[str] = None,
-    db: Optional[AsyncSession] = None
-) -> Tuple[str, Optional[int]]:
+    ip_address: str | None = None,
+    user_agent: str | None = None,
+    db: AsyncSession | None = None
+) -> Tuple[str, int | None]:
     """
     生成6位数字验证码并存入Redis和数据库
     
@@ -194,7 +194,7 @@ async def verify_code(
     phone: str,
     code: str,
     purpose: str = 'register',
-    db: Optional[AsyncSession] = None
+    db: AsyncSession | None = None
 ) -> bool:
     """
     验证短信验证码
@@ -244,7 +244,7 @@ async def update_sms_log_status(
     db: AsyncSession,
     log_id: int,
     status: str,
-    error_message: Optional[str] = None
+    error_message: str | None = None
 ):
     """更新短信日志发送状态"""
     from app.repositories.sms_log_repository import SmsLogRepository

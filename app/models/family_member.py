@@ -3,7 +3,7 @@ Family Member Model
 家庭成员模型
 """
 import enum
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 from datetime import datetime
 from sqlalchemy import String, ForeignKey, Enum, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -29,7 +29,7 @@ class FamilyMember(Base):
     group_id: Mapped[int] = mapped_column(ForeignKey("family_groups.id"), comment="家庭组ID")
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), comment="用户ID")
     role: Mapped[MemberRole] = mapped_column(Enum(MemberRole), default=MemberRole.MEMBER, comment="角色")
-    nickname: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, comment="在家庭组中的昵称")
+    nickname: Mapped[str | None] = mapped_column(String(50), nullable=True, comment="在家庭组中的昵称")
     is_active: Mapped[bool] = mapped_column(default=True, comment="是否激活")
     joined_at: Mapped[datetime] = mapped_column(server_default=func.now(), comment="加入时间")
     

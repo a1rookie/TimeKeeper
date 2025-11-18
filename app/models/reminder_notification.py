@@ -2,7 +2,7 @@
 Reminder Notification Model
 提醒通知模型 - 高级提醒策略配置
 """
-from typing import Optional, List, TYPE_CHECKING
+from typing import List, TYPE_CHECKING
 from datetime import datetime
 from sqlalchemy import String, Text, ForeignKey, func
 from sqlalchemy.dialects.postgresql import JSON
@@ -27,14 +27,14 @@ class ReminderNotification(Base):
     advance_notify_time: Mapped[str] = mapped_column(String(5), default="09:00", comment="提前通知时间（HH:MM格式）")
     
     # ===== 当天通知配置 =====
-    same_day_notifications: Mapped[Optional[List[str]]] = mapped_column(type_=JSON, nullable=True, comment="当天通知时间列表 ['08:00', '12:00', '20:00']")
+    same_day_notifications: Mapped[List[str] | None] = mapped_column(type_=JSON, nullable=True, comment="当天通知时间列表 ['08:00', '12:00', '20:00']")
     
     # ===== 智能时间调整 =====
     avoid_night_time: Mapped[bool] = mapped_column(default=True, comment="避免夜间通知（22:00-07:00）")
     night_time_fallback: Mapped[str] = mapped_column(String(5), default="09:00", comment="夜间时间回退到的时间")
     
     # ===== 其他配置 =====
-    custom_message_template: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="自定义通知消息模板")
+    custom_message_template: Mapped[str | None] = mapped_column(Text, nullable=True, comment="自定义通知消息模板")
     is_active: Mapped[bool] = mapped_column(default=True)
     
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())

@@ -3,7 +3,6 @@ Reminder Template Repository
 系统提醒模板数据访问层
 """
 from collections.abc import Sequence
-from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy import and_, or_, desc
@@ -20,9 +19,9 @@ class ReminderTemplateRepository:
         self,
         name: str,
         category: str,
-        description: Optional[str] = None,
-        default_recurrence_type: Optional[str] = None,
-        default_recurrence_config: Optional[dict] = None,
+        description: str | None = None,
+        default_recurrence_type: str | None = None,
+        default_recurrence_config: dict | None = None,
         default_remind_advance_days: int = 0
     ) -> ReminderTemplate:
         """创建系统模板"""

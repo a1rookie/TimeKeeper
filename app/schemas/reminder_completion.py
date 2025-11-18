@@ -5,17 +5,16 @@ Reminder Completion Schemas
 
 from pydantic import BaseModel, ConfigDict
 from datetime import datetime
-from typing import Optional
 
 
 class ReminderCompletionBase(BaseModel):
     """完成记录基础模型"""
-    note: Optional[str] = None
+    note: str | None = None
 
 
 class ReminderCompletionCreate(ReminderCompletionBase):
     """创建完成记录"""
-    scheduled_time: Optional[datetime] = None
+    scheduled_time: datetime | None = None
     status: str = "completed"
 
 
@@ -24,7 +23,7 @@ class ReminderCompletionResponse(ReminderCompletionBase):
     id: int
     reminder_id: int
     user_id: int
-    scheduled_time: Optional[datetime]
+    scheduled_time: datetime | None
     completed_time: datetime
     status: str
     delay_minutes: int

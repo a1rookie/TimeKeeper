@@ -4,7 +4,7 @@ Reminder Schemas
 """
 
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import List
 from datetime import datetime
 from app.models.reminder import RecurrenceType, ReminderCategory
 
@@ -12,7 +12,7 @@ from app.models.reminder import RecurrenceType, ReminderCategory
 class ReminderBase(BaseModel):
     """Reminder base schema"""
     title: str = Field(..., max_length=200, description="提醒标题")
-    description: Optional[str] = Field(None, max_length=1000, description="提醒描述")
+    description: str | None = Field(None, max_length=1000, description="提醒描述")
     category: ReminderCategory = Field(..., description="分类")
     priority: int = Field(default=1, ge=1, le=3, description="优先级: 1=普通, 2=重要, 3=紧急")
     recurrence_type: RecurrenceType = Field(..., description="周期类型")
@@ -20,9 +20,9 @@ class ReminderBase(BaseModel):
     remind_channels: List[str] = Field(default=["app"], description="提醒渠道")
     advance_minutes: int = Field(default=0, ge=0, description="提前提醒分钟数")
     priority: int = Field(default=1, ge=1, le=3, description="优先级: 1=普通, 2=重要, 3=紧急")
-    amount: Optional[int] = Field(None, description="金额（分）")
-    location: Optional[dict] = Field(None, description="位置信息")
-    attachments: Optional[List[dict]] = Field(None, description="附件列表")
+    amount: int | None = Field(None, description="金额（分）")
+    location: dict | None = Field(None, description="位置信息")
+    attachments: List[dict] | None = Field(None, description="附件列表")
 
 
 class ReminderCreate(ReminderBase):
@@ -32,19 +32,19 @@ class ReminderCreate(ReminderBase):
 
 class ReminderUpdate(BaseModel):
     """Reminder update schema"""
-    title: Optional[str] = Field(None, max_length=200, description="提醒标题")
-    description: Optional[str] = Field(None, max_length=1000, description="提醒描述")
-    category: Optional[ReminderCategory] = Field(None, description="分类")
-    priority: Optional[int] = Field(None, ge=1, le=3, description="优先级")
-    recurrence_type: Optional[RecurrenceType] = Field(None, description="周期类型")
-    recurrence_config: Optional[dict] = Field(None, description="周期配置")
-    remind_channels: Optional[List[str]] = Field(None, description="提醒渠道")
-    advance_minutes: Optional[int] = Field(None, ge=0, description="提前提醒分钟数")
-    amount: Optional[int] = Field(None, description="金额（以分为单位）")
-    location: Optional[dict] = Field(None, description="位置信息")
-    attachments: Optional[List[dict]] = Field(None, description="附件列表")
-    is_active: Optional[bool] = Field(None, description="是否启用")
-    is_completed: Optional[bool] = Field(None, description="是否已完成")
+    title: str | None = Field(None, max_length=200, description="提醒标题")
+    description: str | None = Field(None, max_length=1000, description="提醒描述")
+    category: ReminderCategory | None = Field(None, description="分类")
+    priority: int | None = Field(None, ge=1, le=3, description="优先级")
+    recurrence_type: RecurrenceType | None = Field(None, description="周期类型")
+    recurrence_config: dict | None = Field(None, description="周期配置")
+    remind_channels: List[str] | None = Field(None, description="提醒渠道")
+    advance_minutes: int | None = Field(None, ge=0, description="提前提醒分钟数")
+    amount: int | None = Field(None, description="金额（以分为单位）")
+    location: dict | None = Field(None, description="位置信息")
+    attachments: List[dict] | None = Field(None, description="附件列表")
+    is_active: bool | None = Field(None, description="是否启用")
+    is_completed: bool | None = Field(None, description="是否已完成")
 
 
 class ReminderResponse(ReminderBase):
@@ -53,10 +53,10 @@ class ReminderResponse(ReminderBase):
     user_id: int
     first_remind_time: datetime
     next_remind_time: datetime
-    last_remind_time: Optional[datetime] = None
+    last_remind_time: datetime | None = None
     is_active: bool
     is_completed: bool = False
-    completed_at: Optional[datetime] = None
+    completed_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
     

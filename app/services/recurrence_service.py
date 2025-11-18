@@ -3,7 +3,7 @@ Recurrence Service
 周期计算服务 - 计算提醒的下次触发时间
 """
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 import calendar
 
 
@@ -15,7 +15,7 @@ class RecurrenceService:
         recurrence_type: str,
         recurrence_config: Dict[str, Any],
         current_time: datetime
-    ) -> Optional[datetime]:
+    ) -> datetime | None:
         """
         计算下次提醒时间
         

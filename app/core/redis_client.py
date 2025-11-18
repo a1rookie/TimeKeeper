@@ -4,7 +4,6 @@ Redis客户端封装
 """
 
 import redis
-from typing import Optional
 from app.core.config import settings
 
 
@@ -12,7 +11,7 @@ class RedisClient:
     """
     Redis客户端单例
     """
-    _instance: Optional[redis.Redis] = None
+    _instance: redis.Redis | None = None
     
     @classmethod
     def get_client(cls) -> redis.Redis:
@@ -59,12 +58,12 @@ class RedisCache:
         """生成带前缀的key"""
         return f"{self.prefix}:{key}"
     
-    def get(self, key: str) -> Optional[str]:
+    def get(self, key: str) -> str | None:
         """获取缓存"""
         result = self.client.get(self._make_key(key))
         return str(result) if result is not None else None
     
-    def set(self, key: str, value: str, expire: Optional[int] = None) -> bool:
+    def set(self, key: str, value: str, expire: int | None = None) -> bool:
         """
         设置缓存
         

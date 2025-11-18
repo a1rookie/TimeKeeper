@@ -2,7 +2,7 @@
 User Behavior Repository
 用户行为数据访问层
 """
-from typing import List, Optional
+from typing import List
 from collections.abc import Sequence
 from datetime import date, timedelta
 from decimal import Decimal
@@ -22,11 +22,11 @@ class UserBehaviorRepository:
         self,
         user_id: int,
         behavior_date: date,
-        active_hours: Optional[List[int]] = None,
+        active_hours: List[int] | None = None,
         reminder_count: int = 0,
         completion_count: int = 0,
         completion_rate: Decimal = Decimal("0.0"),
-        avg_response_time_seconds: Optional[int] = None,
+        avg_response_time_seconds: int | None = None,
         voice_input_count: int = 0,
         template_usage_count: int = 0
     ) -> UserBehavior:

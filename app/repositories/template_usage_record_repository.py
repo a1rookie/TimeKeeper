@@ -2,7 +2,6 @@
 Template Usage Record Repository
 模板使用记录数据访问层
 """
-from typing import Optional
 from collections.abc import Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -20,8 +19,8 @@ class TemplateUsageRecordRepository:
         self,
         template_share_id: int,
         user_id: int,
-        feedback_rating: Optional[int] = None,
-        feedback_comment: Optional[str] = None
+        feedback_rating: int | None = None,
+        feedback_comment: str | None = None
     ) -> TemplateUsageRecord:
         """创建使用记录"""
         record = TemplateUsageRecord(
@@ -72,8 +71,8 @@ class TemplateUsageRecordRepository:
     async def update_feedback(
         self,
         record_id: int,
-        feedback_rating: Optional[int] = None,
-        feedback_comment: Optional[str] = None
+        feedback_rating: int | None = None,
+        feedback_comment: str | None = None
     ) -> TemplateUsageRecord | None:
         """更新反馈"""
         record = await self.get_by_id(record_id)

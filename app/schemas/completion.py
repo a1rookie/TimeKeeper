@@ -2,7 +2,6 @@
 Reminder Completion Schemas
 提醒完成记录相关的 Pydantic 模型
 """
-from typing import Optional
 from datetime import datetime
 from pydantic import BaseModel, Field
 from app.models.reminder_completion import CompletionStatus
@@ -23,7 +22,7 @@ class ReminderCompletionResponse(BaseModel):
     scheduled_time: datetime | None = None
     completed_time: datetime
     status: CompletionStatus
-    delay_minutes: Optional[int]
+    delay_minutes: int | None = None
     created_at: datetime
 
     class Config:

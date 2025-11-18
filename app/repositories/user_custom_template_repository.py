@@ -3,7 +3,6 @@ User Custom Template Repository
 用户自定义模板数据访问层
 """
 from collections.abc import Sequence
-from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy import and_
@@ -20,11 +19,11 @@ class UserCustomTemplateRepository:
         self,
         user_id: int,
         name: str,
-        description: Optional[str] = None,
-        recurrence_type: Optional[str] = None,
-        recurrence_config: Optional[dict] = None,
+        description: str | None = None,
+        recurrence_type: str | None = None,
+        recurrence_config: dict | None = None,
         remind_advance_days: int = 0,
-        created_from_template_id: Optional[int] = None
+        created_from_template_id: int | None = None
     ) -> UserCustomTemplate:
         """创建用户自定义模板"""
         template = UserCustomTemplate(

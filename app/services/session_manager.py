@@ -2,7 +2,7 @@
 Session Management Service
 会话管理服务 - 实现单点登录/互踢机制
 """
-from typing import Optional, Literal
+from typing import Literal
 from datetime import datetime, timedelta, UTC
 from redis import Redis
 from app.core.config import settings
@@ -35,7 +35,7 @@ class SessionManager:
         device_type: DeviceType,
         jti: str,
         kick_previous: bool = True
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         创建新会话
         
@@ -200,7 +200,7 @@ class SessionManager:
 
 
 # 全局会话管理器实例（需要在应用启动时初始化）
-_session_manager: Optional[SessionManager] = None
+_session_manager: SessionManager | None = None
 
 
 def init_session_manager(redis_client: Redis):

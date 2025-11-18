@@ -3,7 +3,7 @@ User API Endpoints
 用户相关的 API 端点
 """
 
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status, Header, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import (
@@ -91,7 +91,7 @@ async def register(
 @router.post("/login", response_model=ApiResponse[Token])
 async def login(
     user_data: UserLogin,
-    x_device_type: Optional[str] = Header("web", alias="X-Device-Type"),
+    x_device_type: str | None = Header("web", alias="X-Device-Type"),
     db: AsyncSession = Depends(get_db),
     user_repo: UserRepository = Depends(get_user_repository)
 ):
@@ -320,7 +320,7 @@ async def update_current_user(
 
 @router.post("/logout", response_model=ApiResponse[Dict[str, str]])
 async def logout(
-    x_device_type: Optional[str] = Header("web", alias="X-Device-Type"),
+    x_device_type: str | None = Header("web", alias="X-Device-Type"),
     current_user: User = Depends(get_current_active_user)
 ):
     """

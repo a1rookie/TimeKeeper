@@ -3,7 +3,6 @@ Family Group Repository
 家庭组数据访问层
 """
 from collections.abc import Sequence
-from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy import and_
@@ -17,7 +16,7 @@ class FamilyGroupRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
     
-    async def create(self, name: str, creator_id: int, description: Optional[str] = None) -> FamilyGroup:
+    async def create(self, name: str, creator_id: int, description: str | None = None) -> FamilyGroup:
         """创建家庭组"""
         group = FamilyGroup(
             name=name,

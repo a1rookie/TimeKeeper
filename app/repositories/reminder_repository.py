@@ -3,7 +3,7 @@ Reminder Repository
 提醒数据访问层 - 异步版本
 """
 
-from typing import List, Optional
+from typing import List
 from collections.abc import Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, select
@@ -41,8 +41,8 @@ class ReminderRepository:
         user_id: int, 
         skip: int = 0, 
         limit: int = 100,
-        is_active: Optional[bool] = None,
-        category: Optional[ReminderCategory] = None
+        is_active: bool | None = None,
+        category: ReminderCategory | None = None
     ) -> Sequence[Reminder]:
         """获取用户的提醒列表"""
         query = select(Reminder).filter(Reminder.user_id == user_id)
@@ -64,14 +64,14 @@ class ReminderRepository:
         category: ReminderCategory,
         recurrence_type: RecurrenceType,
         first_remind_time: datetime,
-        description: Optional[str] = None,
+        description: str | None = None,
         recurrence_config: dict | None = None,
         remind_channels: List[str] | None= None,
         advance_minutes: int = 0,
         priority: int = 1,
-        amount: Optional[int] = None,
-        location: Optional[dict] = None,
-        attachments: Optional[list] = None
+        amount: int | None = None,
+        location: dict | None = None,
+        attachments: list | None = None
     ) -> Reminder:
         """创建新提醒"""
         new_reminder = Reminder(
@@ -148,7 +148,7 @@ class ReminderRepository:
         )
         return result.scalars().all()
     
-    async def count_user_reminders(self, user_id: int, is_active: Optional[bool] = None) -> int | None:
+    async def count_user_reminders(self, user_id: int, is_active: bool | None = None) -> int | None:
         """统计用户提醒数量"""
         from sqlalchemy import func, select as sql_select
         

@@ -3,7 +3,7 @@ Push Task Model
 推送任务模型
 """
 
-from typing import Optional, List, Dict, Any, TYPE_CHECKING
+from typing import List, Dict, Any, TYPE_CHECKING
 from datetime import datetime
 from sqlalchemy import String, JSON, ForeignKey, Enum as SQLEnum, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -34,23 +34,23 @@ class PushTask(Base):
     
     # Task info
     title: Mapped[str] = mapped_column(String(200), comment="推送标题")
-    content: Mapped[Optional[str]] = mapped_column(String(500), nullable=True, comment="推送内容")
+    content: Mapped[str | None] = mapped_column(String(500), nullable=True, comment="推送内容")
     channels: Mapped[List[str]] = mapped_column(type_=JSON, default=list, comment="推送渠道(JSON)")
     priority: Mapped[int] = mapped_column(default=1, comment="优先级: 1=普通, 2=重要, 3=紧急")
     
     # Scheduling
     scheduled_time: Mapped[datetime] = mapped_column(index=True, comment="计划推送时间")
-    sent_time: Mapped[Optional[datetime]] = mapped_column(nullable=True, comment="实际发送时间")
+    sent_time: Mapped[datetime | None] = mapped_column(nullable=True, comment="实际发送时间")
     
     # Status
     status: Mapped[PushStatus] = mapped_column(SQLEnum(PushStatus), default=PushStatus.PENDING, index=True, comment="推送状态")
-    error_message: Mapped[Optional[str]] = mapped_column(String(500), nullable=True, comment="错误信息")
+    error_message: Mapped[str | None] = mapped_column(String(500), nullable=True, comment="错误信息")
     retry_count: Mapped[int] = mapped_column(default=0, comment="重试次数")
     max_retries: Mapped[int] = mapped_column(default=3, comment="最大重试次数")
-    executed_at: Mapped[Optional[datetime]] = mapped_column(nullable=True, comment="执行时间")
+    executed_at: Mapped[datetime | None] = mapped_column(nullable=True, comment="执行时间")
     
     # Response data
-    push_response: Mapped[Optional[Dict[str, Any]]] = mapped_column(type_=JSON, nullable=True, comment="推送服务响应(JSON)")
+    push_response: Mapped[Dict[str, Any] | None] = mapped_column(type_=JSON, nullable=True, comment="推送服务响应(JSON)")
     
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), comment="创建时间")

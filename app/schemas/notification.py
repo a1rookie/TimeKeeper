@@ -3,7 +3,6 @@ Family Notification Schemas
 家庭通知的 Pydantic 模型
 """
 from pydantic import BaseModel, Field
-from typing import Optional
 from datetime import datetime
 from app.models.family_notification import NotificationType
 
@@ -16,11 +15,11 @@ class FamilyNotificationResponse(BaseModel):
     receiver_id: int
     notification_type: NotificationType
     title: str
-    content: Optional[str] = None
-    related_reminder_id: Optional[int] = None
-    related_completion_id: Optional[int] = None
+    content: str | None = None
+    related_reminder_id: int | None = None
+    related_completion_id: int | None = None
     is_read: bool
-    read_at: Optional[datetime] = None
+    read_at: datetime | None = None
     created_at: datetime
     
     class Config:

@@ -3,7 +3,7 @@ NLU (Natural Language Understanding) Service
 意图理解服务 - 使用 DeepSeek-V3 大模型解析用户意图
 """
 import json
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from datetime import datetime
 import httpx
 import structlog
@@ -77,7 +77,7 @@ class DeepSeekNLU:
         self.api_url = settings.DEEPSEEK_API_URL
         self.model = settings.DEEPSEEK_MODEL
     
-    async def parse_intent(self, user_input: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    async def parse_intent(self, user_input: str, context: Dict[str, Any] | None = None) -> Dict[str, Any]:
         """
         解析用户意图
         
@@ -203,7 +203,7 @@ class NLUService:
     def __init__(self):
         self.deepseek = DeepSeekNLU() if settings.DEEPSEEK_ENABLED else None
     
-    async def parse_reminder(self, text: str, user_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    async def parse_reminder(self, text: str, user_context: Dict[str, Any] | None = None) -> Dict[str, Any]:
         """
         解析提醒意图
         
@@ -272,7 +272,7 @@ class NLUService:
 
 
 # 全局实例
-_nlu_service: Optional[NLUService] = None
+_nlu_service: NLUService | None = None
 
 
 def get_nlu_service() -> NLUService:

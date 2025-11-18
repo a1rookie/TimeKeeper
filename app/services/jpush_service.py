@@ -5,7 +5,7 @@ JPush Service - 极光推送服务封装
 
 import requests
 import json
-from typing import Optional, List, Dict, Any
+from typing import List, Dict, Any
 from datetime import datetime
 from app.core.config import settings
 import structlog
@@ -42,7 +42,7 @@ class JPushClient:
         user_id: str,
         title: str,
         content: str,
-        extras: Optional[Dict[str, Any]] = None,
+        extras: Dict[str, Any] | None = None,
         badge: int = 1
     ) -> Dict[str, Any]:
         """
@@ -87,7 +87,7 @@ class JPushClient:
         self,
         title: str,
         content: str,
-        extras: Optional[Dict[str, Any]] = None
+        extras: Dict[str, Any] | None = None
     ) -> Dict[str, Any]:
         """
         向所有用户推送消息（广播）
@@ -128,7 +128,7 @@ class JPushClient:
         tags: List[str],
         title: str,
         content: str,
-        extras: Optional[Dict[str, Any]] = None
+        extras: Dict[str, Any] | None = None
     ) -> Dict[str, Any]:
         """
         向指定标签的用户推送消息
@@ -299,7 +299,7 @@ class JPushClient:
 
 
 # 单例客户端
-_jpush_client: Optional[JPushClient] = None
+_jpush_client: JPushClient | None = None
 
 
 def get_jpush_client() -> JPushClient:

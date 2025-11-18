@@ -5,13 +5,12 @@ PushTask Service
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timedelta
-from typing import Optional
 from app.models.reminder import Reminder
 from app.models.push_task import PushTask, PushStatus
 from app.core.recurrence import calculate_next_occurrence
 
 
-async def create_push_task_for_reminder(db: AsyncSession, reminder: Reminder) -> Optional[PushTask]:
+async def create_push_task_for_reminder(db: AsyncSession, reminder: Reminder) -> PushTask | None:
     """
     为提醒创建推送任务
     
@@ -108,8 +107,8 @@ async def update_push_task_status(
     db: AsyncSession, 
     task_id: int, 
     status: PushStatus,
-    error_message: Optional[str] = None
-) -> Optional[PushTask]:
+    error_message: str | None = None
+) -> PushTask | None:
     """
     更新推送任务状态
     

@@ -4,7 +4,6 @@ Application Configuration
 """
 
 from pydantic_settings import BaseSettings
-from typing import Optional
 
 
 class Settings(BaseSettings):
@@ -23,11 +22,11 @@ class Settings(BaseSettings):
 
     # SMS (短信) 配置 - 使用环境变量设置实际密钥
     SMS_PROVIDER: str = "aliyun"  # aliyun or noop
-    ALIYUN_ACCESS_KEY_ID: Optional[str] = None
-    ALIYUN_ACCESS_KEY_SECRET: Optional[str] = None
-    SMS_SIGN_NAME: Optional[str] = None
-    SMS_TEMPLATE_CODE: Optional[str] = None
-    SMS_REGION: Optional[str] = "cn-hangzhou"
+    ALIYUN_ACCESS_KEY_ID: str | None = None
+    ALIYUN_ACCESS_KEY_SECRET: str | None = None
+    SMS_SIGN_NAME: str | None = None
+    SMS_TEMPLATE_CODE: str | None = None
+    SMS_REGION: str | None = "cn-hangzhou"
     SMS_CODE_EXPIRE_SECONDS: int = 300  # 验证码过期时间（秒）
     SMS_RATE_LIMIT_SECONDS: int = 60  # 相同手机同用途最小发送间隔
     
@@ -50,21 +49,21 @@ class Settings(BaseSettings):
         return [origin.strip() for origin in self.BACKEND_CORS_ORIGINS.split(",")]
     
     # Push Services - 极光推送
-    JPUSH_APP_KEY: Optional[str] = None
-    JPUSH_MASTER_SECRET: Optional[str] = None
+    JPUSH_APP_KEY: str | None = None
+    JPUSH_MASTER_SECRET: str | None = None
     JPUSH_ENABLED: bool = False
     
     # ===== 语音识别服务配置 (ASR) =====
     # 科大讯飞（主力）
-    XFYUN_APP_ID: Optional[str] = None
-    XFYUN_API_KEY: Optional[str] = None
-    XFYUN_API_SECRET: Optional[str] = None
+    XFYUN_APP_ID: str | None = None
+    XFYUN_API_KEY: str | None = None
+    XFYUN_API_SECRET: str | None = None
     XFYUN_ENABLED: bool = False
     
     # 百度语音（备用）
-    BAIDU_APP_ID: Optional[str] = None
-    BAIDU_API_KEY: Optional[str] = None
-    BAIDU_SECRET_KEY: Optional[str] = None
+    BAIDU_APP_ID: str | None = None
+    BAIDU_API_KEY: str | None = None
+    BAIDU_SECRET_KEY: str | None = None
     BAIDU_ENABLED: bool = False
     
     # ASR 通用配置
@@ -73,7 +72,7 @@ class Settings(BaseSettings):
     
     # ===== 意图理解服务配置 (NLU) =====
     # DeepSeek-V3 大模型
-    DEEPSEEK_API_KEY: Optional[str] = None
+    DEEPSEEK_API_KEY: str | None = None
     DEEPSEEK_API_URL: str = "https://api.deepseek.com/v1/chat/completions"
     DEEPSEEK_MODEL: str = "deepseek-chat"  # 或 deepseek-coder
     DEEPSEEK_ENABLED: bool = False

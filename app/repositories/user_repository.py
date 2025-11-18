@@ -3,7 +3,6 @@ User Repository
 用户数据访问层 - 异步版本
 """
 
-from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.models.user import User
@@ -29,7 +28,7 @@ class UserRepository:
         )
         return result.scalar_one_or_none()
     
-    async def create(self, phone: str, hashed_password: str, nickname: Optional[str] = None) -> User:
+    async def create(self, phone: str, hashed_password: str, nickname: str | None = None) -> User:
         """创建新用户"""
         new_user = User(
             phone=phone,

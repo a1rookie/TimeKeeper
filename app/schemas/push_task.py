@@ -5,7 +5,7 @@ Push Task Pydantic Schemas
 
 from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import Optional, List
+from typing import List
 from app.models.push_task import PushStatus
 
 
@@ -25,9 +25,9 @@ class PushTaskCreate(BaseModel):
 
 class PushTaskUpdate(BaseModel):
     """更新推送任务"""
-    scheduled_time: Optional[datetime] = Field(None, description="计划推送时间")
-    title: Optional[str] = Field(None, min_length=1, max_length=200, description="推送标题")
-    content: Optional[str] = Field(None, min_length=1, max_length=1000, description="推送内容")
+    scheduled_time: datetime | None = Field(None, description="计划推送时间")
+    title: str | None = Field(None, min_length=1, max_length=200, description="推送标题")
+    content: str | None = Field(None, min_length=1, max_length=1000, description="推送内容")
 
 
 class PushTaskResponse(BaseModel):
@@ -40,12 +40,12 @@ class PushTaskResponse(BaseModel):
     channels: List[str]
     priority: int = 1
     scheduled_time: datetime
-    sent_time: Optional[datetime] = None
+    sent_time: datetime | None = None
     status: PushStatus
-    error_message: Optional[str] = None
+    error_message: str | None = None
     retry_count: int
     max_retries: int = 3
-    push_response: Optional[dict] = None
+    push_response: dict | None = None
     created_at: datetime
     updated_at: datetime
 

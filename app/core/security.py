@@ -5,7 +5,7 @@ Security Utilities
 
 from datetime import UTC, datetime
 from datetime import datetime, timedelta
-from typing import Any, Optional
+from typing import Any
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
@@ -43,7 +43,7 @@ def get_password_hash(password: str) -> str:
 
 def create_access_token(
     data: dict,
-    expires_delta: Optional[timedelta] = None,
+    expires_delta: timedelta | None = None,
     device_type: str = "web"
 ) -> tuple[str, str]:
     """
@@ -82,7 +82,7 @@ def create_access_token(
     return encoded_jwt, jti
 
 
-def verify_token(token: str) -> Optional[dict]:
+def verify_token(token: str) -> dict | None:
     """
     Verify JWT token and return payload
     验证 JWT 令牌并返回载荷

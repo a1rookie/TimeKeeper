@@ -4,27 +4,26 @@ User Schemas
 """
 
 from pydantic import BaseModel, Field, validator
-from typing import Optional
 from datetime import datetime
 
 
 class UserBase(BaseModel):
     """User base schema"""
     phone: str = Field(..., description="手机号")
-    nickname: Optional[str] = Field(None, description="昵称")
+    nickname: str | None = Field(None, description="昵称")
 
 
 class UserCreate(UserBase):
     """User creation schema"""
     password: str = Field(..., min_length=6, description="密码")
-    sms_code: Optional[str] = Field(None, description="短信验证码 - 注册时需要")
+    sms_code: str | None = Field(None, description="短信验证码 - 注册时需要")
 
 
 class UserLogin(BaseModel):
     """User login schema - 支持密码登录或验证码登录"""
     phone: str = Field(..., description="手机号")
-    password: Optional[str] = Field(None, description="密码 - 密码登录时必填")
-    sms_code: Optional[str] = Field(None, description="短信验证码 - 验证码登录时必填")
+    password: str | None = Field(None, description="密码 - 密码登录时必填")
+    sms_code: str | None = Field(None, description="短信验证码 - 验证码登录时必填")
     
     @validator('sms_code')
     def validate_login_method(cls, v, values):
@@ -37,15 +36,15 @@ class UserLogin(BaseModel):
 
 class UserUpdate(BaseModel):
     """User update schema"""
-    nickname: Optional[str] = Field(None, description="昵称")
-    avatar_url: Optional[str] = Field(None, description="头像URL")
-    settings: Optional[dict] = Field(None, description="用户设置")
+    nickname: str | None = Field(None, description="昵称")
+    avatar_url: str | None = Field(None, description="头像URL")
+    settings: dict | None = Field(None, description="用户设置")
 
 
 class UserResponse(UserBase):
     """User response schema"""
     id: int
-    avatar_url: Optional[str] = None
+    avatar_url: str | None = None
     settings: dict = {}
     is_active: bool = True
     created_at: datetime
@@ -63,10 +62,10 @@ class Token(BaseModel):
 
 class TokenPayload(BaseModel):
     """Token payload schema"""
-    user_id: Optional[int] = None
+    user_id: int | None = None
 
 
 class SendSmsRequest(BaseModel):
     """发送短信验证码请求"""
     phone: str = Field(..., description="手机号")
-    purpose: Optional[str] = Field("register", description="用途: register(注册) | login(登录) | reset(重置密码)")
+    purpose: str | None = Field("register", description="用途: register(注册) | login(登录) | reset(重置密码)")

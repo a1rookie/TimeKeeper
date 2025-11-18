@@ -3,7 +3,7 @@ User Model
 用户数据模型
 """
 
-from typing import Optional, List, Dict, Any, TYPE_CHECKING
+from typing import List, Dict, Any, TYPE_CHECKING
 from datetime import datetime
 from sqlalchemy import String, JSON, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -31,8 +31,8 @@ class User(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True, comment="用户ID")
     phone: Mapped[str] = mapped_column(String(20), unique=True, index=True, comment="手机号")
     hashed_password: Mapped[str] = mapped_column(String(255), comment="密码哈希")
-    nickname: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, comment="昵称")
-    avatar_url: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, comment="头像URL")
+    nickname: Mapped[str | None] = mapped_column(String(50), nullable=True, comment="昵称")
+    avatar_url: Mapped[str | None] = mapped_column(String(255), nullable=True, comment="头像URL")
     settings: Mapped[Dict[str, Any]] = mapped_column(type_=JSON, default=dict, comment="用户设置(JSON)")
     is_active: Mapped[bool] = mapped_column(default=True, comment="是否激活")
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), comment="创建时间")
