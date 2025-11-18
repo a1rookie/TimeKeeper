@@ -3,7 +3,7 @@ Reminder Completion API
 提醒完成记录的 API 路由
 """
 from typing import List
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 import structlog
@@ -234,7 +234,7 @@ async def get_my_completions(
     user_id = int(current_user.id)  
     
     # 查询最近N天的完成记录
-    since = datetime.utcnow() - timedelta(days=days)
+    since = datetime.now(UTC) - timedelta(days=days)
     completions = await completion_repo.get_by_user_since(user_id, since, limit=1000)
     
     return ApiResponse.success(data=[
@@ -295,7 +295,7 @@ async def get_reminder_stats(
     completions = await completion_repo.get_by_reminder(reminder_id, limit=1000)
     
     # 筛选指定天数内的记录
-    since = datetime.utcnow() - timedelta(days=days)
+    since = datetime.now(UTC) - timedelta(days=days)
     recent_completions = [
         c for c in completions 
         if c.scheduled_time and c.scheduled_time >= since  
@@ -357,7 +357,7 @@ async def get_my_stats(
     active_reminders = [r for r in all_reminders if r.is_active]  
     
     # 统计完成记录
-    since = datetime.utcnow() - timedelta(days=days)
+    since = datetime.now(UTC) - timedelta(days=days)
     completions = await completion_repo.get_by_user_since(user_id, since, limit=10000)
     total_completions = len(completions)
     
