@@ -3,7 +3,6 @@ Family Member Repository
 家庭成员数据访问层
 """
 from collections.abc import Sequence
-from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy import and_
@@ -21,7 +20,7 @@ class FamilyMemberRepository:
         group_id: int,
         user_id: int,
         role: MemberRole = MemberRole.MEMBER,
-        nickname: Optional[str] = None
+        nickname: str | None = None
     ) -> FamilyMember:
         """添加成员到家庭组"""
         member = FamilyMember(

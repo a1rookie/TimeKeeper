@@ -3,7 +3,6 @@ Reminder Completion Repository
 提醒完成记录数据访问层
 """
 
-from typing import Optional
 from collections.abc import Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -21,8 +20,8 @@ class ReminderCompletionRepository:
         self,
         reminder_id: int,
         user_id: int,
-        scheduled_time: Optional[datetime] = None,
-        note: Optional[str] = None,
+        scheduled_time: datetime | None = None,
+        note: str | None = None,
         status: str = "completed"
     ) -> ReminderCompletion:
         """创建完成记录"""
@@ -96,8 +95,8 @@ class ReminderCompletionRepository:
     async def count_by_user(
         self,
         user_id: int,
-        start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None
+        start_date: datetime | None = None,
+        end_date: datetime | None = None
     ) -> int:
         """统计用户在时间范围内的完成次数"""
         from sqlalchemy import func

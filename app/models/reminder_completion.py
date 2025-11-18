@@ -3,7 +3,7 @@ Reminder Completion Model
 提醒完成记录模型
 """
 import enum
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 from datetime import datetime
 from sqlalchemy import String, ForeignKey, Enum, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -31,11 +31,11 @@ class ReminderCompletion(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True, comment="完成用户ID")
     
     # Completion info (使用数据库现有字段名)
-    scheduled_time: Mapped[Optional[datetime]] = mapped_column(nullable=True, comment="计划时间")
+    scheduled_time: Mapped[datetime | None] = mapped_column(nullable=True, comment="计划时间")
     completed_time: Mapped[datetime] = mapped_column(index=True, comment="实际完成时间")
     status: Mapped[CompletionStatus] = mapped_column(Enum(CompletionStatus), default=CompletionStatus.COMPLETED, comment="状态")
     delay_minutes: Mapped[int] = mapped_column(default=0, comment="延迟分钟数")
-    note: Mapped[Optional[str]] = mapped_column(String(500), nullable=True, comment="完成备注")
+    note: Mapped[str | None] = mapped_column(String(500), nullable=True, comment="完成备注")
     
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), comment="创建时间")

@@ -4,7 +4,7 @@ Family Notification Repository
 """
 import asyncio
 from collections.abc import Sequence
-from typing import List, Optional
+from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, desc, func
 from datetime import datetime, timezone
@@ -25,10 +25,10 @@ class FamilyNotificationRepository:
         receiver_id: int,
         notification_type: NotificationType,
         title: str,
-        content: Optional[str] = None,
-        related_reminder_id: Optional[int] = None,
-        related_completion_id: Optional[int] = None,
-        metadata_json: Optional[str] = None
+        content: str | None = None,
+        related_reminder_id: int | None = None,
+        related_completion_id: int | None = None,
+        metadata_json: str | None = None
     ) -> FamilyNotification:
         """创建通知"""
         notification = FamilyNotification(
@@ -134,10 +134,10 @@ class FamilyNotificationRepository:
         receiver_ids: List[int],
         notification_type: NotificationType,
         title: str,
-        content: Optional[str] = None,
-        related_reminder_id: Optional[int] = None,
-        related_completion_id: Optional[int] = None,
-        metadata_json: Optional[str] = None
+        content: str | None = None,
+        related_reminder_id: int | None = None,
+        related_completion_id: int | None = None,
+        metadata_json: str | None = None
     ) -> Sequence[FamilyNotification]:
         """批量为家庭成员创建通知"""
         notifications = []

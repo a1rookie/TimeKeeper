@@ -2,7 +2,7 @@
 Advanced Reminder Notification Service
 高级提醒通知服务 - 处理复杂的通知策略
 """
-from typing import List, Optional
+from typing import List
 from datetime import datetime, timedelta, time
 import structlog
 
@@ -185,7 +185,7 @@ class AdvancedNotificationService:
     @staticmethod
     def get_all_notification_times(
         reminder: Reminder,
-        notification_config: Optional[ReminderNotification]
+        notification_config: ReminderNotification | None
     ) -> List[datetime]:
         """
         获取所有通知时间（提前通知 + 当天通知）
@@ -232,7 +232,7 @@ class AdvancedNotificationService:
     @staticmethod
     def generate_notification_message(
         reminder: Reminder,
-        notification_config: Optional[ReminderNotification],
+        notification_config: ReminderNotification | None,
         notification_time: datetime
     ) -> str:
         """

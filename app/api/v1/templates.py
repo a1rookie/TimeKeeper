@@ -2,7 +2,7 @@
 Template API
 模板系统的 API 路由
 """
-from typing import List, Optional
+from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 import structlog
@@ -103,7 +103,7 @@ def _to_usage_response(u) -> TemplateUsageResponse:
 
 @router.get("/templates/system", response_model=ApiResponse[List[ReminderTemplateResponse]])
 async def list_system_templates(
-    category: Optional[str] = Query(None, description="按分类筛选"),
+    category: str | None = Query(None, description="按分类筛选"),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -509,7 +509,7 @@ async def unlike_template(
 
 @router.get("/marketplace", response_model=ApiResponse[List[TemplateShareDetail]])
 async def get_template_marketplace(
-    category: Optional[str] = Query(None, description="分类筛选"),
+    category: str | None = Query(None, description="分类筛选"),
     sort_by: str = Query("popular", description="排序方式: popular(热门)/latest(最新)/most_used(最常用)"),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),

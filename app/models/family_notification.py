@@ -2,7 +2,7 @@
 Family Notification Model
 家庭通知模型 - 用于家庭成员之间的消息通知
 """
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 from datetime import datetime
 from sqlalchemy import String, Text, ForeignKey, Enum as SQLEnum, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -35,18 +35,18 @@ class FamilyNotification(Base):
     
     notification_type: Mapped[NotificationType] = mapped_column(SQLEnum(NotificationType))
     title: Mapped[str] = mapped_column(String(200))
-    content: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    content: Mapped[str | None] = mapped_column(Text, nullable=True)
     
     # 关联对象信息
-    related_reminder_id: Mapped[Optional[int]] = mapped_column(ForeignKey("reminders.id"), nullable=True)
-    related_completion_id: Mapped[Optional[int]] = mapped_column(ForeignKey("reminder_completions.id"), nullable=True)
+    related_reminder_id: Mapped[int | None] = mapped_column(ForeignKey("reminders.id"), nullable=True)
+    related_completion_id: Mapped[int | None] = mapped_column(ForeignKey("reminder_completions.id"), nullable=True)
     
     # 元数据
-    metadata_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON格式的额外信息
+    metadata_json: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON格式的额外信息
     
     # 状态
     is_read: Mapped[bool] = mapped_column(default=False, index=True)
-    read_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
+    read_at: Mapped[datetime | None] = mapped_column(nullable=True)
     
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     

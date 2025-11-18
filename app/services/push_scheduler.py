@@ -5,7 +5,7 @@ Push Scheduler - 推送任务调度器
 
 import asyncio
 from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import async_session_maker
@@ -227,7 +227,7 @@ async def batch_create_push_tasks(
 
 
 # 全局调度器实例
-_scheduler: Optional[PushScheduler] = None
+_scheduler: PushScheduler | None = None
 
 
 def get_scheduler() -> PushScheduler:

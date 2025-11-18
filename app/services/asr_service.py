@@ -7,7 +7,7 @@ import hashlib
 import hmac
 import json
 import time
-from typing import Optional, Tuple
+from typing import Tuple
 from datetime import datetime
 import httpx
 import structlog
@@ -120,8 +120,8 @@ class BaiduASR:
         self.secret_key = settings.BAIDU_SECRET_KEY
         self.token_url = "https://aip.baidubce.com/oauth/2.0/token"
         self.asr_url = "https://vop.baidu.com/server_api"
-        self._access_token: Optional[str] = None
-        self._token_expires_at: Optional[datetime] = None
+        self._access_token: str | None = None
+        self._token_expires_at: datetime | None = None
     
     async def _get_access_token(self) -> str | None:
         """获取access token（带缓存）"""
@@ -265,7 +265,7 @@ class ASRService:
 
 
 # 全局实例
-_asr_service: Optional[ASRService] = None
+_asr_service: ASRService | None = None
 
 
 def get_asr_service() -> ASRService:

@@ -3,7 +3,7 @@ PushTask Repository
 推送任务数据访问层
 """
 
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 from collections.abc import Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, update
@@ -20,7 +20,7 @@ class PushTaskRepository:
     # -----------------
     # 实例方法（用于通过实例操作）
     # -----------------
-    async def get_by_id(self, task_id: int, user_id: Optional[int] = None) -> PushTask | None:
+    async def get_by_id(self, task_id: int, user_id: int | None = None) -> PushTask | None:
         stmt = select(PushTask).where(PushTask.id == task_id)
         if user_id is not None:
             stmt = stmt.where(PushTask.user_id == user_id)
@@ -33,8 +33,8 @@ class PushTaskRepository:
         user_id: int,
         title: str,
         scheduled_time: datetime,
-        content: Optional[str] = None,
-        channels: Optional[List[str]] = None,
+        content: str | None = None,
+        channels: list[str] | None = None,
         priority: int = 1,
         max_retries: int = 3
     ) -> PushTask:
@@ -67,8 +67,8 @@ class PushTaskRepository:
         self,
         task: PushTask,
         status: PushStatus,
-        error_message: Optional[str] = None,
-        push_response: Optional[dict] = None
+        error_message: str | None = None,
+        push_response: dict | None = None
     ) -> PushTask:
         task.status = status
         if status == PushStatus.SENT:
@@ -133,7 +133,7 @@ class PushTaskRepository:
     # 类方法（兼容现有代码风格：通过类直接调用并传入 db 参数）
     # -----------------
     @staticmethod
-    async def get_by_id_static(db: AsyncSession, task_id: int, user_id: Optional[int] = None) -> PushTask | None:
+    async def get_by_id_static(db: AsyncSession, task_id: int, user_id: int | None = None) -> PushTask | None:
         repo = PushTaskRepository(db)
         return await repo.get_by_id(task_id=task_id, user_id=user_id)
 
@@ -143,8 +143,8 @@ class PushTaskRepository:
         user_id: int,
         skip: int = 0,
         limit: int = 20,
-        status: Optional[PushStatus] = None,
-        reminder_id: Optional[int] = None
+        status: PushStatus | None = None,
+        reminder_id: int | None = None
     ) -> Tuple[List[PushTask], int]:
         stmt = select(PushTask).where(PushTask.user_id == user_id)
         if status is not None:
@@ -177,7 +177,7 @@ class PushTaskRepository:
         return await repo.update(task=task, **update_data)
 
     @staticmethod
-    async def update_status_static(db: AsyncSession, task: PushTask, status: PushStatus, error_message: Optional[str] = None, push_response: Optional[dict] = None) -> PushTask:
+    async def update_status_static(db: AsyncSession, task: PushTask, status: PushStatus, error_message: str | None = None, push_response: dict | None = None) -> PushTask:
         repo = PushTaskRepository(db)
         return await repo.update_status(task=task, status=status, error_message=error_message, push_response=push_response)
 

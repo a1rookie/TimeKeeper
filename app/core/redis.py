@@ -2,14 +2,13 @@
 Redis Connection
 Redis 连接管理
 """
-from typing import Optional
 from redis import Redis
 from app.core.config import settings
 
-_redis_client: Optional[Redis] = None
+_redis_client: Redis | None = None
 
 
-def get_redis() -> Optional[Redis]:
+def get_redis() -> Redis | None:
     """
     获取Redis客户端
     

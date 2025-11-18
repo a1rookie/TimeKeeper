@@ -3,7 +3,7 @@ Reminder Notification Schemas
 提醒通知策略的 Pydantic 模型
 """
 from pydantic import BaseModel, Field, validator
-from typing import Optional, List
+from typing import List
 from datetime import datetime
 
 
@@ -16,14 +16,14 @@ class ReminderNotificationCreate(BaseModel):
     advance_notify_time: str = Field("09:00", description="提前通知时间（HH:MM格式）")
     
     # 当天通知配置
-    same_day_notifications: Optional[List[str]] = Field(None, description="当天通知时间列表 ['08:00', '12:00', '20:00']")
+    same_day_notifications: List[str] | None = Field(None, description="当天通知时间列表 ['08:00', '12:00', '20:00']")
     
     # 智能时间调整
     avoid_night_time: bool = Field(True, description="避免夜间通知（22:00-07:00）")
     night_time_fallback: str = Field("09:00", description="夜间时间回退到的时间")
     
     # 其他
-    custom_message_template: Optional[str] = Field(None, description="自定义通知消息模板")
+    custom_message_template: str | None = Field(None, description="自定义通知消息模板")
     
     @validator('advance_notify_time', 'night_time_fallback')
     def validate_time_format(cls, v):
@@ -55,15 +55,15 @@ class ReminderNotificationCreate(BaseModel):
 
 class ReminderNotificationUpdate(BaseModel):
     """更新通知策略"""
-    advance_notify_enabled: Optional[bool] = None
-    advance_days: Optional[int] = Field(None, ge=0, le=365)
-    advance_notify_interval: Optional[int] = Field(None, ge=1, le=30)
-    advance_notify_time: Optional[str] = None
-    same_day_notifications: Optional[List[str]] = None
-    avoid_night_time: Optional[bool] = None
-    night_time_fallback: Optional[str] = None
-    custom_message_template: Optional[str] = None
-    is_active: Optional[bool] = None
+    advance_notify_enabled: bool | None = None
+    advance_days: int | None = Field(None, ge=0, le=365)
+    advance_notify_interval: int | None = Field(None, ge=1, le=30)
+    advance_notify_time: str | None = None
+    same_day_notifications: List[str] | None = None
+    avoid_night_time: bool | None = None
+    night_time_fallback: str | None = None
+    custom_message_template: str | None = None
+    is_active: bool | None = None
     
     @validator('advance_notify_time', 'night_time_fallback')
     def validate_time_format(cls, v):
@@ -87,10 +87,10 @@ class ReminderNotificationResponse(BaseModel):
     advance_days: int
     advance_notify_interval: int
     advance_notify_time: str
-    same_day_notifications: Optional[List[str]] = None
+    same_day_notifications: List[str] | None = None
     avoid_night_time: bool
     night_time_fallback: str
-    custom_message_template: Optional[str] = None
+    custom_message_template: str | None = None
     is_active: bool
     created_at: datetime
     updated_at: datetime

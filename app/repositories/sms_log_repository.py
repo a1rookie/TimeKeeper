@@ -2,7 +2,6 @@
 SMS Log Repository
 短信日志数据访问层
 """
-from typing import Optional
 from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -21,10 +20,10 @@ class SmsLogRepository:
         phone: str,
         purpose: str,
         code: str,
-        ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
         provider: str = "noop",
-        expires_at: Optional[datetime] = None
+        expires_at: datetime | None = None
     ) -> SmsLog:
         """创建短信日志"""
         log = SmsLog(
@@ -42,7 +41,7 @@ class SmsLogRepository:
         await self.db.refresh(log)
         return log
     
-    async def update_status(self, log_id: int, status: str, error_message: Optional[str] = None):
+    async def update_status(self, log_id: int, status: str, error_message: str | None = None):
         """更新发送状态"""
         from sqlalchemy import update as sql_update
         now = datetime.now()
@@ -91,7 +90,7 @@ class SmsLogRepository:
             return int(updated_log.verify_attempts) if updated_log else 0
         return 0
     
-    async def count_by_phone_today(self, phone: str, purpose: Optional[str] = None) -> int:
+    async def count_by_phone_today(self, phone: str, purpose: str | None = None) -> int:
         """统计手机号今日发送次数"""
         today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         stmt = select(func.count()).select_from(SmsLog).where(

@@ -2,7 +2,7 @@
 System Config Repository
 系统配置数据访问层
 """
-from typing import Optional, Any
+from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.models.system_config import SystemConfig
@@ -24,7 +24,7 @@ class SystemConfigRepository:
         
         return config.config_value if config else None
     
-    async def set(self, config_key: str, config_value: Any, description: Optional[str] = None) -> SystemConfig:
+    async def set(self, config_key: str, config_value: Any, description: str | None = None) -> SystemConfig:
         """设置配置值"""
         stmt = select(SystemConfig).where(
             SystemConfig.config_key == config_key

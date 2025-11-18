@@ -2,7 +2,6 @@
 Template Share Repository
 模板分享数据访问层
 """
-from typing import Optional
 from collections.abc import Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -31,8 +30,8 @@ class TemplateShareRepository:
         user_id: int,
         share_type: ShareType,
         share_title: str,
-        share_description: Optional[str] = None,
-        family_group_id: Optional[int] = None
+        share_description: str | None = None,
+        family_group_id: int | None = None
     ) -> TemplateShare:
         """创建模板分享"""
         share = TemplateShare(
