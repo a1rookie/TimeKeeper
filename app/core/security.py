@@ -4,7 +4,7 @@ Security Utilities
 """
 
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Any, Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
@@ -12,6 +12,17 @@ import bcrypt
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.database import get_db
+from typing import Literal, cast
+
+# 设备类型定义
+DeviceType = Literal["web", "ios", "android", "desktop"]
+
+
+def to_device_type(s: str) -> DeviceType:
+    if s not in ("web", "ios", "android", "desktop"):
+        raise ValueError("invalid device_type")
+    return cast(DeviceType, s)
+
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify password against hash using bcrypt directly"""
@@ -128,10 +139,10 @@ async def get_current_user(
     token = credentials.credentials
     
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        user_id: int = payload.get("user_id")
-        jti: str = payload.get("jti")
-        device_type: str = payload.get("device_type", "web")
+        payload: dict[str, Any] = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        user_id: int | None = payload.get("user_id")
+        jti: str | None = payload.get("jti")
+        device_type: DeviceType = to_device_type(payload.get("device_type", "web"))
         
         if user_id is None or jti is None:
             raise credentials_exception
