@@ -13,7 +13,7 @@ logs/
 
 # docs
 docs/
-*.md
+docs/*.md
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
