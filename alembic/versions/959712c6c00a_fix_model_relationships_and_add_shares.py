@@ -102,10 +102,8 @@ def upgrade() -> None:
                comment='优先级',
                existing_comment='优先级: 1=普通, 2=重要, 3=紧急',
                existing_nullable=True)
-    op.alter_column('push_tasks', 'executed_at',
-               existing_type=postgresql.TIMESTAMP(timezone=True),
-               comment='执行时间',
-               existing_nullable=True)
+    # Add executed_at column to push_tasks table
+    op.add_column('push_tasks', sa.Column('executed_at', sa.DateTime(timezone=True), nullable=True, comment='执行时间'))
     op.alter_column('reminder_completions', 'id',
                existing_type=sa.BIGINT(),
                type_=sa.Integer(),
@@ -502,11 +500,8 @@ def downgrade() -> None:
                existing_comment='完成记录ID',
                existing_nullable=False,
                autoincrement=True)
-    op.alter_column('push_tasks', 'executed_at',
-               existing_type=postgresql.TIMESTAMP(timezone=True),
-               comment=None,
-               existing_comment='执行时间',
-               existing_nullable=True)
+    # Drop executed_at column from push_tasks table
+    op.drop_column('push_tasks', 'executed_at')
     op.alter_column('push_tasks', 'priority',
                existing_type=sa.INTEGER(),
                comment='优先级: 1=普通, 2=重要, 3=紧急',
