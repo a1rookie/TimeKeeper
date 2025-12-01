@@ -154,10 +154,10 @@ alembic upgrade head
 
 ```bash
 # 开发模式(热重载)
-python main.py
+uv run python main.py
 
 # 或使用 uvicorn
-uvicorn main:app --reload
+uv run uvicorn main:app --reload
 ```
 
 7. **访问 API 文档**
