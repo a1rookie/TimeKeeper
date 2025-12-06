@@ -14,6 +14,26 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app.core.config import settings
 from app.core.database import Base
 
+# Import all models to ensure they are registered with Base.metadata
+from app.models.user import User
+from app.models.reminder import Reminder
+from app.models.reminder_completion import ReminderCompletion
+from app.models.reminder_template import ReminderTemplate
+from app.models.user_custom_template import UserCustomTemplate
+from app.models.template_share import TemplateShare
+from app.models.template_usage_record import TemplateUsageRecord
+from app.models.template_like import TemplateLike
+from app.models.family_group import FamilyGroup
+from app.models.family_member import FamilyMember
+from app.models.push_task import PushTask
+from app.models.push_log import PushLog
+from app.models.family_notification import FamilyNotification
+from app.models.reminder_notification import ReminderNotification
+from app.models.sms_log import SmsLog
+from app.models.system_config import SystemConfig
+from app.models.user_behavior import UserBehavior
+from app.models.voice_input import VoiceInput
+
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
