@@ -121,8 +121,7 @@ class DeepSeekNLU:
             logger.info(
                 "deepseek_nlu_request",
                 user_input_length=len(user_input),
-                has_context=context is not None,
-                event="nlu_parse_start"
+                has_context=context is not None
             )
             
             async with httpx.AsyncClient(timeout=settings.DEEPSEEK_TIMEOUT) as client:
@@ -144,8 +143,7 @@ class DeepSeekNLU:
                         "nlu_low_confidence",
                         confidence=confidence,
                         threshold=settings.NLU_CONFIDENCE_THRESHOLD,
-                        user_input=user_input[:50],
-                        event="nlu_low_confidence"
+                        user_input=user_input[:50]
                     )
                 
                 logger.info(
@@ -153,8 +151,7 @@ class DeepSeekNLU:
                     confidence=confidence,
                     category=parsed_data.get("category"),
                     recurrence_type=parsed_data.get("recurrence_type"),
-                    tokens_used=result.get("usage", {}).get("total_tokens", 0),
-                    event="nlu_parse_success"
+                    tokens_used=result.get("usage", {}).get("total_tokens", 0)
                 )
                 
                 return parsed_data
@@ -170,29 +167,25 @@ class DeepSeekNLU:
         except httpx.RequestError as e:  # 网络层异常，无 response
             logger.error(
                 "deepseek_nlu_request_error",
-                error=str(e), 
-                event="nlu_request_error"
+                error=str(e)
             )
             raise NLUError(f"DeepSeek API 请求失败: {str(e)}")
         except json.JSONDecodeError as e:
             logger.error(
                 "deepseek_nlu_json_error",
-                error=str(e),
-                event="nlu_json_decode_error"
+                error=str(e)
             )
             raise NLUError("DeepSeek 返回的 JSON 格式错误")
         except KeyError as e:
             logger.error(
                 "deepseek_nlu_response_error",
-                error=str(e),
-                event="nlu_response_format_error"
+                error=str(e)
             )
             raise NLUError("DeepSeek 响应格式异常")
         except Exception as e:
             logger.error(
                 "deepseek_nlu_error",
-                error=str(e),
-                event="nlu_unknown_error"
+                error=str(e)
             )
             raise NLUError(f"意图理解失败: {str(e)}")
 
@@ -225,8 +218,7 @@ class NLUService:
         if len(text) > 500:
             logger.warning(
                 "nlu_text_too_long",
-                length=len(text),
-                event="nlu_text_truncated"
+                length=len(text)
             )
             text = text[:500]  # 截断过长文本
         

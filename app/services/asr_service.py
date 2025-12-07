@@ -242,8 +242,7 @@ class ASRService:
             except ASRError as e:
                 logger.warning(
                     "xfyun_fallback_to_baidu",
-                    reason=str(e),
-                    event="asr_provider_switch"
+                    reason=str(e)
                 )
         
         # 降级到百度语音
@@ -256,8 +255,7 @@ class ASRService:
                     "all_asr_providers_failed",
                     xfyun_available=self.xfyun is not None,
                     baidu_available=self.baidu is not None,
-                    error=str(e),
-                    event="asr_total_failure"
+                    error=str(e)
                 )
                 raise ASRError("所有语音识别服务均不可用")
         

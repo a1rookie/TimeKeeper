@@ -53,8 +53,7 @@ class AdvancedNotificationService:
             logger.info(
                 "night_time_adjusted",
                 original_time=target_time.strftime("%H:%M"),
-                adjusted_time=adjusted_time.strftime("%H:%M"),
-                event="time_adjustment"
+                adjusted_time=adjusted_time.strftime("%H:%M")
             )
             
             return adjusted_time
@@ -115,8 +114,7 @@ class AdvancedNotificationService:
             reminder_id=reminder.id,
             advance_days=advance_days,
             interval=interval,
-            notification_count=len(result),
-            event="advance_calculation"
+            notification_count=len(result)
         )
         
         return sorted(result)
@@ -168,16 +166,14 @@ class AdvancedNotificationService:
                 logger.error(
                     "invalid_time_format",
                     time_str=time_str,
-                    error=str(e),
-                    event="time_parse_error"
+                    error=str(e)
                 )
         
         logger.info(
             "same_day_notifications_calculated",
             reminder_id=reminder.id,
             configured_times=len(notification_config.same_day_notifications),
-            valid_times=len(result),
-            event="same_day_calculation"
+            valid_times=len(result)
         )
         
         return sorted(result)
@@ -223,8 +219,7 @@ class AdvancedNotificationService:
             reminder_id=reminder.id,
             advance_count=len(advance_times),
             same_day_count=len(same_day_times),
-            total_count=len(all_times),
-            event="notification_schedule_complete"
+            total_count=len(all_times)
         )
         
         return all_times

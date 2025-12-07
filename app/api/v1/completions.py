@@ -147,8 +147,7 @@ async def complete_reminder(
             "family_reminder_completed",
             reminder_id=reminder_id,
             family_group_id=family_group_id,
-            completed_by=user_id,
-            event="family_reminder_completion"
+            completed_by=user_id
         )
     
     return ApiResponse[ReminderCompletionResponse].success(data=ReminderCompletionResponse(

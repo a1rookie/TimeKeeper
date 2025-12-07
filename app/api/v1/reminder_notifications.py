@@ -101,8 +101,7 @@ async def create_notification_config(
         reminder_id=reminder_id,
         user_id=current_user.id,
         advance_enabled=config.advance_notify_enabled,
-        advance_days=config.advance_days,
-        event="notification_config_create"
+        advance_days=config.advance_days
     )
     
     return ApiResponse[ReminderNotificationResponse].success(
@@ -177,8 +176,7 @@ async def update_notification_config(
         "notification_config_updated",
         reminder_id=reminder_id,
         user_id=current_user.id,
-        updated_fields=list(update_data.keys()),
-        event="notification_config_update"
+        updated_fields=list(update_data.keys())
     )
     
     return ApiResponse[ReminderNotificationResponse].success(
@@ -218,8 +216,7 @@ async def delete_notification_config(
     logger.info(
         "notification_config_deleted",
         reminder_id=reminder_id,
-        user_id=current_user.id,
-        event="notification_config_delete"
+        user_id=current_user.id
     )
     
     return ApiResponse[None].success(message="通知策略已删除")
@@ -276,8 +273,7 @@ async def get_notification_schedule(
         reminder_id=reminder_id,
         total_notifications=len(all_times),
         advance_count=len(advance_times),
-        same_day_count=len(same_day_times),
-        event="schedule_query"
+        same_day_count=len(same_day_times)
     )
     
     return ApiResponse[NotificationScheduleResponse].success(data=response)

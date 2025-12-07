@@ -48,8 +48,7 @@ class FamilyNotificationService:
         if not receiver_ids:
             logger.info(
                 "no_family_members_to_notify",
-                family_group_id=family_group_id,
-                event="notification_skip"
+                family_group_id=family_group_id
             )
             return
         
@@ -87,8 +86,7 @@ class FamilyNotificationService:
             family_group_id=family_group_id,
             sender_id=sender_id,
             reminder_id=reminder_id,
-            notification_count=len(notifications),
-            event="notification_sent"
+            notification_count=len(notifications)
         )
         
         return notifications
@@ -123,8 +121,7 @@ class FamilyNotificationService:
         logger.info(
             "family_reminder_created_notified",
             family_group_id=family_group_id,
-            notification_count=len(notifications),
-            event="notification_sent"
+            notification_count=len(notifications)
         )
         
         return notifications
@@ -159,8 +156,7 @@ class FamilyNotificationService:
         logger.info(
             "family_reminder_updated_notified",
             family_group_id=family_group_id,
-            notification_count=len(notifications),
-            event="notification_sent"
+            notification_count=len(notifications)
         )
         
         return notifications

@@ -43,8 +43,7 @@ async def get_my_notifications(
         "get_notifications",
         user_id=current_user.id,
         unread_only=unread_only,
-        count=len(notifications),
-        event="notifications_retrieved"
+        count=len(notifications)
     )
     
     return ApiResponse[List[FamilyNotificationResponse]].success(data=[
@@ -107,8 +106,7 @@ async def mark_notification_as_read(
         logger.info(
             "notification_marked_read",
             notification_id=notification_id,
-            user_id=current_user.id,
-            event="notification_read"
+            user_id=current_user.id
         )
         return ApiResponse[FamilyNotificationResponse].success(
             data=FamilyNotificationResponse.model_validate(notification),
@@ -136,8 +134,7 @@ async def mark_all_as_read(
     logger.info(
         "all_notifications_marked_read",
         user_id=current_user.id,
-        count=count,
-        event="notifications_bulk_read"
+        count=count
     )
     
     return ApiResponse[Dict[str, int]].success(
@@ -178,8 +175,7 @@ async def delete_notification(
         logger.info(
             "notification_deleted",
             notification_id=notification_id,
-            user_id=current_user.id,
-            event="notification_delete"
+            user_id=current_user.id
         )
         return ApiResponse[None].success(message="通知已删除")
     

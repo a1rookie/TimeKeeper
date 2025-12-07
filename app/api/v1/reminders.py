@@ -54,8 +54,7 @@ async def create_reminder(
         user_id=current_user.id,
         title=reminder_data.title,
         category=reminder_data.category,
-        recurrence_type=reminder_data.recurrence_type,
-        event="reminder_create_start"
+        recurrence_type=reminder_data.recurrence_type
     )
     
     # 使用Repository创建提醒
@@ -79,8 +78,7 @@ async def create_reminder(
         "reminder_created",
         reminder_id=new_reminder.id,
         user_id=current_user.id,
-        title=new_reminder.title,
-        event="reminder_create_success"
+        title=new_reminder.title
     )
     
     return ApiResponse[ReminderResponse].success(data=new_reminder, message="创建成功")
@@ -154,8 +152,7 @@ async def update_reminder(
         logger.warning(
             "reminder_update_not_found",
             reminder_id=reminder_id,
-            user_id=current_user.id,
-            event="reminder_update_not_found"
+            user_id=current_user.id
         )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -168,8 +165,7 @@ async def update_reminder(
         "reminder_update_request",
         reminder_id=reminder_id,
         user_id=current_user.id,
-        updated_fields=list(update_data.keys()),
-        event="reminder_update_start"
+        updated_fields=list(update_data.keys())
     )
     
     updated_reminder = await reminder_repo.update(reminder, **update_data)
@@ -177,8 +173,7 @@ async def update_reminder(
     logger.info(
         "reminder_updated",
         reminder_id=reminder_id,
-        user_id=current_user.id,
-        event="reminder_update_success"
+        user_id=current_user.id
     )
     
     return ApiResponse[ReminderResponse].success(data=updated_reminder, message="更新成功")
@@ -203,8 +198,7 @@ async def delete_reminder(
         logger.warning(
             "reminder_delete_not_found",
             reminder_id=reminder_id,
-            user_id=current_user.id,
-            event="reminder_delete_not_found"
+            user_id=current_user.id
         )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -215,8 +209,7 @@ async def delete_reminder(
         "reminder_delete_request",
         reminder_id=reminder_id,
         user_id=current_user.id,
-        title=reminder.title,
-        event="reminder_delete_start"
+        title=reminder.title
     )
     
     await reminder_repo.delete(reminder)
@@ -224,8 +217,7 @@ async def delete_reminder(
     logger.info(
         "reminder_deleted",
         reminder_id=reminder_id,
-        user_id=current_user.id,
-        event="reminder_delete_success"
+        user_id=current_user.id
     )
     
     return ApiResponse[None].success(message="删除成功")
@@ -383,8 +375,7 @@ async def create_voice_reminder(
         "voice_reminder_request",
         user_id=current_user.id,
         filename=audio_file.filename,
-        content_type=audio_file.content_type,
-        event="voice_reminder_start"
+        content_type=audio_file.content_type
     )
     
     try:
@@ -394,8 +385,7 @@ async def create_voice_reminder(
         
         logger.info(
             "voice_reminder_audio_received",
-            audio_size=audio_size,
-            event="audio_received"
+            audio_size=audio_size
         )
         
         # 1. 语音识别（ASR）
@@ -408,15 +398,13 @@ async def create_voice_reminder(
                 text=text[:100],  # 只记录前100字符
                 text_length=len(text),
                 provider=provider,
-                audio_size=audio_size,
-                event="asr_complete"
+                audio_size=audio_size
             )
         except ASRError as e:
             logger.error(
                 "voice_reminder_asr_failed",
                 error=str(e),
-                audio_size=audio_size,
-                event="asr_failed"
+                audio_size=audio_size
             )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -436,15 +424,13 @@ async def create_voice_reminder(
                 "voice_reminder_nlu_complete",
                 confidence=parsed_intent.get("confidence"),
                 category=parsed_intent.get("category"),
-                recurrence_type=parsed_intent.get("recurrence_type"),
-                event="nlu_complete"
+                recurrence_type=parsed_intent.get("recurrence_type")
             )
         except NLUError as e:
             logger.error(
                 "voice_reminder_nlu_failed",
                 error=str(e),
-                text=text[:100],
-                event="nlu_failed"
+                text=text[:100]
             )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -489,8 +475,7 @@ async def create_voice_reminder(
             user_id=new_reminder.user_id,
             title=new_reminder.title,
             confidence=parsed_intent.get("confidence"),
-            provider=provider,
-            event="voice_reminder_success"
+            provider=provider
         )
         
         return ApiResponse[ReminderResponse].success(
@@ -504,8 +489,7 @@ async def create_voice_reminder(
         logger.error(
             "voice_reminder_error",
             error=str(e),
-            user_id=current_user.id,
-            event="voice_reminder_error"
+            user_id=current_user.id
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -542,8 +526,7 @@ async def create_quick_reminder(
         "quick_reminder_request",
         template_id=quick_data.template_id,
         user_id=current_user.id,
-        has_custom_data=bool(quick_data.custom_data),
-        event="quick_reminder_start"
+        has_custom_data=bool(quick_data.custom_data)
     )
     
     try:
@@ -616,8 +599,7 @@ async def create_quick_reminder(
             "quick_reminder_template_loaded",
             template_id=quick_data.template_id,
             template_name=template.name,
-            template_type=template_type,
-            event="template_loaded"
+            template_type=template_type
         )
         
         # 构建提醒数据（优先使用自定义数据）
@@ -685,8 +667,7 @@ async def create_quick_reminder(
             reminder_id=new_reminder.id,
             template_id=quick_data.template_id,
             template_name=template.name,
-            user_id=current_user.id,
-            event="quick_reminder_success"
+            user_id=current_user.id
         )
         
         return ApiResponse[ReminderResponse].success(
@@ -701,8 +682,7 @@ async def create_quick_reminder(
             "quick_reminder_error",
             error=str(e),
             template_id=quick_data.template_id,
-            user_id=current_user.id,
-            event="quick_reminder_error"
+            user_id=current_user.id
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
