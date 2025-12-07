@@ -78,8 +78,7 @@ async def create_family_group(
     logger.info(
         "family_group_create_request",
         user_id=current_user.id,
-        group_name=data.name,
-        event="family_group_create_start"
+        group_name=data.name
     )
     
     group_repo = FamilyGroupRepository(db)
@@ -107,8 +106,7 @@ async def create_family_group(
         "family_group_created",
         group_id=group.id,
         creator_id=current_user.id,
-        group_name=group.name,
-        event="family_group_create_success"
+        group_name=group.name
     )
     
     # 获取完整信息

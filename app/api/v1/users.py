@@ -46,7 +46,7 @@ async def register(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="手机号已被注册"
         )
-    
+
     # 验证短信验证码（如果配置了SMS_PROVIDER）
     if settings.SMS_PROVIDER:
         if not user_data.sms_code:
@@ -67,7 +67,7 @@ async def register(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=str(e)
             )
-
+    print("cccc")
     # Create new user
     hashed_password = get_password_hash(user_data.password)
     new_user = await user_repo.create(
@@ -75,14 +75,13 @@ async def register(
         nickname=user_data.nickname,
         hashed_password=hashed_password
     )
-    
+    print("dddd")
     # 记录用户注册事件
     logger.info(
         "user_registered",
         user_id=new_user.id,
         phone=user_data.phone,
-        nickname=user_data.nickname,
-        event="user_registration_success"
+        nickname=user_data.nickname
     )
     
     return ApiResponse[UserResponse].success(data=new_user, message="注册成功")
@@ -119,7 +118,7 @@ async def login(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="手机号或密码错误"
         )
-    
+    print("aaaa")
     # 验证登录凭证：密码或验证码
     if user_data.sms_code:
         # 验证码登录
@@ -184,8 +183,7 @@ async def login(
                 device_type=device_type,
                 old_jti=old_jti[:8] + "...",  # 只记录前8位
                 new_jti=jti[:8] + "...",
-                phone=user.phone,
-                event="user_login_kick_previous_session"
+                phone=user.phone
             )
             
     except RuntimeError as e:
@@ -197,7 +195,6 @@ async def login(
             reason=str(e),
             fallback="jwt_only_mode"
         )
-    
     token_data = Token(access_token=access_token, token_type="bearer")
     return ApiResponse[Token].success(data=token_data, message="登录成功")
 

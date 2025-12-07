@@ -54,7 +54,7 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> ApiResponse[Dict[s
             "status": "error",
             "message": f"数据库连接失败: {str(e)}"
         }
-        logger.error("health_check_database_error", error=str(e), event="health_check_fail")
+        logger.error("health_check_database_error", error=str(e))
     
     # 2. 数据库查询性能检查
     try:
@@ -81,8 +81,7 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> ApiResponse[Dict[s
     logger.info(
         "health_check",
         status=health_status["status"],
-        response_time_ms=health_status["response_time_ms"],
-        event="health_check_complete"
+        response_time_ms=health_status["response_time_ms"]
     )
     
     return ApiResponse[Dict[str, Any]].success(data=health_status)
@@ -200,14 +199,13 @@ async def get_system_metrics(db: AsyncSession = Depends(get_db)) -> ApiResponse[
         logger.info(
             "metrics_retrieved",
             total_users=total_users,
-            total_reminders=total_reminders,
-            event="metrics_collected"
+            total_reminders=total_reminders
         )
         
         return ApiResponse[Dict[str, Any]].success(data=metrics)
         
     except Exception as e:
-        logger.error("metrics_error", error=str(e), event="metrics_collection_failed")
+        logger.error("metrics_error", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"获取系统指标失败: {str(e)}"
@@ -259,14 +257,13 @@ async def get_performance_metrics(db: AsyncSession = Depends(get_db)) -> ApiResp
         logger.info(
             "performance_metrics",
             avg_query_time_ms=performance["avg_query_time_ms"],
-            grade=performance["performance_grade"],
-            event="performance_measured"
+            grade=performance["performance_grade"]
         )
         
         return ApiResponse[Dict[str, Any]].success(data=performance)
         
     except Exception as e:
-        logger.error("performance_metrics_error", error=str(e), event="performance_measurement_failed")
+        logger.error("performance_metrics_error", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"获取性能指标失败: {str(e)}"
@@ -339,14 +336,13 @@ async def get_growth_metrics(db: AsyncSession = Depends(get_db)) -> ApiResponse[
         
         logger.info(
             "growth_metrics",
-            days_analyzed=len(days),
-            event="growth_analyzed"
+            days_analyzed=len(days)
         )
         
         return ApiResponse[Dict[str, Any]].success(data=growth)
         
     except Exception as e:
-        logger.error("growth_metrics_error", error=str(e), event="growth_analysis_failed")
+        logger.error("growth_metrics_error", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"获取增长指标失败: {str(e)}"
