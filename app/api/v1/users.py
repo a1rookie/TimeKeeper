@@ -67,7 +67,6 @@ async def register(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=str(e)
             )
-    print("cccc")
     # Create new user
     hashed_password = get_password_hash(user_data.password)
     new_user = await user_repo.create(
@@ -75,7 +74,6 @@ async def register(
         nickname=user_data.nickname,
         hashed_password=hashed_password
     )
-    print("dddd")
     # 记录用户注册事件
     logger.info(
         "user_registered",
@@ -118,7 +116,6 @@ async def login(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="手机号或密码错误"
         )
-    print("aaaa")
     # 验证登录凭证：密码或验证码
     if user_data.sms_code:
         # 验证码登录
@@ -196,6 +193,14 @@ async def login(
             fallback="jwt_only_mode"
         )
     token_data = Token(access_token=access_token, token_type="bearer")
+    # 记录登录成功事件（结构化日志）
+    logger.info(
+        "user_login_success",
+        user_id=user.id,
+        device_type=device_type,
+        jti=jti[:8] + "...",
+        phone=user.phone
+    )
     return ApiResponse[Token].success(data=token_data, message="登录成功")
 
 
