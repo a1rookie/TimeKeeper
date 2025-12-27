@@ -5,7 +5,8 @@ User Model
 
 from typing import List, Dict, Any, TYPE_CHECKING
 from datetime import datetime
-from sqlalchemy import String, JSON, func
+import enum
+from sqlalchemy import String, JSON, Enum as SQLEnum, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
@@ -24,6 +25,13 @@ if TYPE_CHECKING:
     from app.models.user_behavior import UserBehavior
 
 
+class UserRole(str, enum.Enum):
+    """用户角色枚举"""
+    USER = "user"              # 普通用户
+    ADMIN = "admin"            # 管理员
+    SUPER_ADMIN = "super_admin"  # 超级管理员
+
+
 class User(Base):
     """User table - 用户表"""
     __tablename__ = "users"
@@ -34,9 +42,25 @@ class User(Base):
     nickname: Mapped[str | None] = mapped_column(String(50), nullable=True, comment="昵称")
     avatar_url: Mapped[str | None] = mapped_column(String(255), nullable=True, comment="头像URL")
     settings: Mapped[Dict[str, Any]] = mapped_column(type_=JSON, default=dict, comment="用户设置(JSON)")
+    
+    # 账号状态
     is_active: Mapped[bool] = mapped_column(default=True, comment="是否激活")
-    created_at: Mapped[datetime] = mapped_column(server_default=func.now(), comment="创建时间")
+    is_verified: Mapped[bool] = mapped_column(default=True, comment="是否已验证手机号")
+    is_banned: Mapped[bool] = mapped_column(default=False, index=True, comment="是否被封禁")
+    role: Mapped[UserRole] = mapped_column(SQLEnum(UserRole), default=UserRole.USER, index=True, comment="用户角色")
+    ban_reason: Mapped[str | None] = mapped_column(String(255), nullable=True, comment="封禁原因")
+    banned_at: Mapped[datetime | None] = mapped_column(nullable=True, comment="封禁时间")
+    
+    # 注册审计信息
+    registration_ip: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True, comment="注册IP地址")
+    registration_user_agent: Mapped[str | None] = mapped_column(String(500), nullable=True, comment="注册User-Agent")
+    registration_source: Mapped[str | None] = mapped_column(String(50), nullable=True, comment="注册来源(web/ios/android)")
+    
+    # 时间戳
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now(), index=True, comment="创建时间")
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now(), comment="更新时间")
+    last_login_at: Mapped[datetime | None] = mapped_column(nullable=True, comment="最后登录时间")
+    last_login_ip: Mapped[str | None] = mapped_column(String(50), nullable=True, comment="最后登录IP")
     
     # Relationships
     reminders: Mapped[List["Reminder"]] = relationship(back_populates="user", cascade="all, delete-orphan")

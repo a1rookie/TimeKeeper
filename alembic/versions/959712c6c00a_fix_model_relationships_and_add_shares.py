@@ -1,7 +1,7 @@
 """fix_model_relationships_and_add_shares
 
 Revision ID: 959712c6c00a
-Revises: 105bfd055cd6
+Revises: 7ad7168b373a
 Create Date: 2025-11-12 13:31:55.311693
 
 """
@@ -13,7 +13,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = '959712c6c00a'
-down_revision: Union[str, Sequence[str], None] = '105bfd055cd6'
+down_revision: Union[str, Sequence[str], None] = '7ad7168b373a'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

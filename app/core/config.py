@@ -4,6 +4,7 @@ Application Configuration
 """
 
 from pydantic_settings import BaseSettings
+from pydantic import field_validator
 
 
 class Settings(BaseSettings):
@@ -81,6 +82,43 @@ class Settings(BaseSettings):
     
     # NLU 通用配置
     NLU_CONFIDENCE_THRESHOLD: float = 0.7  # 意图识别置信度阈值
+
+    # 字符串环境变量可能包含行内注释（例如: "300  # 注释"），下面的验证器会在解析前去掉注释
+    @field_validator(
+        "SMS_CODE_EXPIRE_SECONDS",
+        "SMS_RATE_LIMIT_SECONDS",
+        "MAX_VERIFY_ATTEMPTS",
+        "MAX_SMS_PER_PHONE_PER_DAY",
+        "MAX_SMS_PER_IP_PER_DAY",
+        "ASR_TIMEOUT",
+        "ASR_MAX_AUDIO_SIZE",
+        "DEEPSEEK_TIMEOUT",
+        "DEEPSEEK_MAX_TOKENS",
+        mode="before",
+    )
+    def _parse_int_fields(cls, v):
+        """Strip inline comments and parse ints from strings."""
+        if isinstance(v, str):
+            # 去掉行内注释（# 及其之后的内容）并两侧去空格
+            v = v.split("#", 1)[0].strip()
+            if v == "":
+                return None
+        try:
+            return int(v)
+        except Exception:
+            return v
+
+    @field_validator("NLU_CONFIDENCE_THRESHOLD", mode="before")
+    def _parse_float_fields(cls, v):
+        """Strip inline comments and parse floats from strings."""
+        if isinstance(v, str):
+            v = v.split("#", 1)[0].strip()
+            if v == "":
+                return None
+        try:
+            return float(v)
+        except Exception:
+            return v
     
     class Config:
         env_file = ".env"
