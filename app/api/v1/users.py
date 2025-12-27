@@ -14,7 +14,10 @@ from app.core.security import (
 )
 from app.core.database import get_db
 from app.models.user import User
-from app.schemas.user import UserCreate, UserLogin, UserResponse, Token, UserUpdate, SendSmsRequest
+from app.schemas.user import (
+    UserCreate, UserLogin, UserResponse, Token, UserUpdate, SendSmsRequest,
+    ChangePasswordRequest, ResetPasswordRequest, ChangePhoneRequest, DeleteAccountRequest
+)
 from app.schemas.response import ApiResponse
 from app.services.sms_service import get_sms_service, generate_and_store_code, verify_code, update_sms_log_status
 import json
@@ -133,12 +136,11 @@ async def register(
     # ===== 4. 创建新用户（包含审计信息） =====
     hashed_password = get_password_hash(user_data.password)
     
-    # 直接使用SQLAlchemy创建，包含审计字段
-    from app.models.user import User
-    new_user = User(
+    # 使用 Repository 创建用户
+    new_user = await user_repo.create(
         phone=user_data.phone,
-        nickname=user_data.nickname,
         hashed_password=hashed_password,
+        nickname=user_data.nickname,
         registration_ip=ip_address,
         registration_user_agent=user_agent,
         registration_source=device_type,
@@ -146,10 +148,6 @@ async def register(
         is_active=True,
         is_banned=False
     )
-    
-    db.add(new_user)
-    await db.commit()
-    await db.refresh(new_user)
     
     # ===== 5. 记录注册事件 =====
     await anti_fraud.record_registration(ip_address or "unknown")
@@ -242,7 +240,21 @@ async def login(
             detail="手机号或密码错误"
         )
     
-    # ===== 3. 检查账号是否被封禁 =====
+    # ===== 3. 检查账号状态 =====
+    # 3.1 检查账号是否已注销
+    if not user.is_active:
+        logger.warning(
+            "inactive_user_login_attempt",
+            user_id=user.id,
+            phone=user_data.phone,
+            ip=ip_address
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="账号已注销，如需恢复请联系客服"
+        )
+    
+    # 3.2 检查账号是否被封禁
     if user.is_banned:
         logger.warning(
             "banned_user_login_attempt",
@@ -316,9 +328,7 @@ async def login(
         await anti_fraud.clear_login_failures(user_data.phone)
     
     # ===== 6. 更新最后登录信息 =====
-    user.last_login_at = datetime.datetime.now()
-    user.last_login_ip = ip_address
-    await db.commit()
+    await user_repo.update_last_login(user, ip_address)
     
     # 验证设备类型
     from typing import cast
@@ -481,7 +491,8 @@ async def send_sms_code(
 async def update_current_user(
     user_data: UserUpdate,
     current_user: User = Depends(get_current_active_user),
-    user_repo: UserRepository = Depends(get_user_repository)
+    user_repo: UserRepository = Depends(get_user_repository),
+    db: AsyncSession = Depends(get_db)
 ) -> ApiResponse[UserResponse]:
     """
     Update current user
@@ -494,7 +505,289 @@ async def update_current_user(
     update_fields = user_data.model_dump(exclude_unset=True)
     updated_user = await user_repo.update(current_user, **update_fields)
     
+    logger.info(
+        "user_info_updated",
+        user_id=current_user.id,
+        updated_fields=list(update_fields.keys())
+    )
+    
     return ApiResponse[UserResponse].success(data=updated_user, message="更新成功")
+
+
+@router.put("/me/password", response_model=ApiResponse[Dict[str, str]])
+async def change_password(
+    request_data: ChangePasswordRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+    user_repo: UserRepository = Depends(get_user_repository)
+) -> ApiResponse[Dict[str, str]]:
+    """
+    Change password
+    修改密码（已登录用户，仅需旧密码）
+    
+    Security:
+        - JWT认证（已登录）
+        - 验证旧密码
+        - 密码强度验证
+        - 修改密码后踢掉所有会话（强制重新登录）
+    
+    Returns:
+        ApiResponse[Dict]: 统一响应格式
+    """
+    # 1. 验证旧密码
+    if not verify_password(request_data.old_password, current_user.hashed_password):
+        logger.warning(
+            "change_password_old_password_incorrect",
+            user_id=current_user.id,
+            phone=current_user.phone
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="旧密码错误"
+        )
+    
+    # 2. 检查新密码不能与旧密码相同
+    if verify_password(request_data.new_password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="新密码不能与旧密码相同"
+        )
+    
+    # 3. 更新密码
+    await user_repo.update_password(current_user, get_password_hash(request_data.new_password))
+    
+    # 4. 踢掉所有会话（强制重新登录）
+    try:
+        from app.services.session_manager import get_session_manager
+        session_manager = get_session_manager()
+        revoked_count = session_manager.revoke_all_sessions(current_user.id)
+        
+        logger.info(
+            "password_changed_sessions_revoked",
+            user_id=current_user.id,
+            phone=current_user.phone,
+            revoked_sessions=revoked_count
+        )
+    except RuntimeError:
+        logger.warning(
+            "password_changed_session_revoke_skipped",
+            user_id=current_user.id,
+            reason="session_manager_unavailable"
+        )
+    
+    return ApiResponse[Dict[str, str]].success(
+        data={"message": "密码修改成功，请重新登录"},
+        message="密码修改成功"
+    )
+
+
+@router.post("/reset-password", response_model=ApiResponse[Dict[str, str]])
+async def reset_password(
+    request_data: ResetPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+    user_repo: UserRepository = Depends(get_user_repository)
+) -> ApiResponse[Dict[str, str]]:
+    """
+    Reset password (forgot password)
+    重置密码（忘记密码）
+    
+    Security:
+        - 仅需短信验证码（无需旧密码）
+        - 重置后踢掉所有会话
+    
+    Returns:
+        ApiResponse[Dict]: 统一响应格式
+    """
+    # 1. 验证短信验证码
+    try:
+        ok = await verify_code(request_data.phone, request_data.sms_code, purpose="reset", db=db)
+        if not ok:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="短信验证码错误或已过期"
+            )
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    
+    # 2. 查找用户
+    user = await user_repo.get_by_phone(request_data.phone)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="用户不存在"
+        )
+    
+    # 3. 更新密码
+    await user_repo.update_password(user, get_password_hash(request_data.new_password))
+    
+    # 4. 踢掉所有会话
+    try:
+        from app.services.session_manager import get_session_manager
+        session_manager = get_session_manager()
+        session_manager.revoke_all_sessions(user.id)
+        
+        logger.info(
+            "password_reset_success",
+            user_id=user.id,
+            phone=request_data.phone
+        )
+    except RuntimeError:
+        logger.warning(
+            "password_reset_session_revoke_skipped",
+            user_id=user.id,
+            reason="session_manager_unavailable"
+        )
+    
+    return ApiResponse[Dict[str, str]].success(
+        data={"message": "密码重置成功，请使用新密码登录"},
+        message="密码重置成功"
+    )
+
+
+@router.put("/me/phone", response_model=ApiResponse[Dict[str, str]])
+async def change_phone(
+    request_data: ChangePhoneRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+    user_repo: UserRepository = Depends(get_user_repository)
+) -> ApiResponse[Dict[str, str]]:
+    """
+    Change phone number
+    修改手机号
+    
+    Security:
+        - 验证旧手机号短信验证码
+        - 验证新手机号短信验证码
+        - 检查新手机号是否已被使用
+    
+    Returns:
+        ApiResponse[Dict]: 统一响应格式
+    """
+    # 1. 验证旧手机号验证码
+    try:
+        ok = await verify_code(
+            current_user.phone,
+            request_data.old_phone_sms_code,
+            purpose="login",
+            db=db
+        )
+        if not ok:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="旧手机号验证码错误或已过期"
+            )
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"旧手机号验证失败: {str(e)}"
+        )
+    
+    # 2. 验证新手机号验证码
+    try:
+        ok = await verify_code(
+            request_data.new_phone,
+            request_data.new_phone_sms_code,
+            purpose="register",
+            db=db
+        )
+        if not ok:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="新手机号验证码错误或已过期"
+            )
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"新手机号验证失败: {str(e)}"
+        )
+    
+    # 3. 检查新手机号是否已被使用
+    if await user_repo.exists_by_phone(request_data.new_phone):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="该手机号已被其他用户使用"
+        )
+    
+    # 4. 更新手机号
+    old_phone = current_user.phone
+    await user_repo.update_phone(current_user, request_data.new_phone)
+    
+    logger.info(
+        "phone_changed_success",
+        user_id=current_user.id,
+        old_phone=old_phone,
+        new_phone=request_data.new_phone
+    )
+    
+    return ApiResponse[Dict[str, str]].success(
+        data={"old_phone": old_phone, "new_phone": request_data.new_phone},
+        message="手机号修改成功"
+    )
+
+
+@router.delete("/me", response_model=ApiResponse[Dict[str, str]])
+async def delete_account(
+    request_data: DeleteAccountRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+    user_repo: UserRepository = Depends(get_user_repository)
+) -> ApiResponse[Dict[str, str]]:
+    """
+    Delete account (soft delete)
+    注销账号（软删除）
+    
+    Security:
+        - 验证短信验证码
+        - 软删除（设置 is_active=False）
+        - 踢掉所有会话
+    
+    Returns:
+        ApiResponse[Dict]: 统一响应格式
+    """
+    # 1. 验证短信验证码
+    try:
+        ok = await verify_code(
+            current_user.phone,
+            request_data.sms_code,
+            purpose="login",
+            db=db
+        )
+        if not ok:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="短信验证码错误或已过期"
+            )
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    
+    # 2. 软删除账号
+    await user_repo.deactivate_user(current_user)
+    
+    # 3. 踢掉所有会话
+    try:
+        from app.services.session_manager import get_session_manager
+        session_manager = get_session_manager()
+        session_manager.revoke_all_sessions(current_user.id)
+    except RuntimeError:
+        pass
+    
+    logger.warning(
+        "account_deleted",
+        user_id=current_user.id,
+        phone=current_user.phone,
+        reason=request_data.reason or "未提供"
+    )
+    
+    return ApiResponse[Dict[str, str]].success(
+        data={"message": "账号已注销"},
+        message="账号注销成功"
+    )
 
 
 @router.post("/logout", response_model=ApiResponse[Dict[str, str]])

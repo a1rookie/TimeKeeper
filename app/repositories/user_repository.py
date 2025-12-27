@@ -29,12 +29,21 @@ class UserRepository:
         )
         return result.scalar_one_or_none()
     
-    async def create(self, phone: str, hashed_password: str, nickname: str | None = None) -> User:
-        """创建新用户"""
+    async def create(self, phone: str, hashed_password: str, nickname: str | None = None, **extra_fields) -> User:
+        """
+        创建新用户
+        
+        Args:
+            phone: 手机号
+            hashed_password: 密码哈希
+            nickname: 昵称（可选）
+            **extra_fields: 其他字段（如 registration_ip, registration_user_agent 等）
+        """
         new_user = User(
             phone=phone,
             nickname=nickname or f"用户{phone[-4:]}",
-            hashed_password=hashed_password
+            hashed_password=hashed_password,
+            **extra_fields
         )
         self.db.add(new_user)
         await self.db.commit()
@@ -188,6 +197,38 @@ class UserRepository:
         user.ban_reason = None
         user.banned_at = None
         
+        await self.db.commit()
+        await self.db.refresh(user)
+        return user
+    
+    # ========== 用户状态更新方法 ==========
+    
+    async def update_last_login(self, user: User, ip_address: str | None = None) -> User:
+        """更新用户最后登录信息"""
+        user.last_login_at = datetime.now()
+        if ip_address:
+            user.last_login_ip = ip_address
+        await self.db.commit()
+        await self.db.refresh(user)
+        return user
+    
+    async def update_password(self, user: User, new_hashed_password: str) -> User:
+        """更新用户密码"""
+        user.hashed_password = new_hashed_password
+        await self.db.commit()
+        await self.db.refresh(user)
+        return user
+    
+    async def update_phone(self, user: User, new_phone: str) -> User:
+        """更新用户手机号"""
+        user.phone = new_phone
+        await self.db.commit()
+        await self.db.refresh(user)
+        return user
+    
+    async def deactivate_user(self, user: User) -> User:
+        """注销用户（软删除）"""
+        user.is_active = False
         await self.db.commit()
         await self.db.refresh(user)
         return user

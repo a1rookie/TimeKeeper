@@ -5,6 +5,36 @@ User Schemas
 
 from pydantic import BaseModel, Field, validator
 from datetime import datetime
+import re
+
+
+def validate_password_strength(password: str) -> str:
+    """
+    验证密码强度
+    
+    要求：
+    - 长度至少8位
+    - 至少包含一个大写字母
+    - 至少包含一个小写字母
+    - 至少包含一个数字
+    - 至少包含一个特殊字符 (!@#$%^&*()_+-=[]{}|;:,.<>?)
+    """
+    if len(password) < 8:
+        raise ValueError('密码长度至少8位')
+    
+    if not re.search(r'[A-Z]', password):
+        raise ValueError('密码必须包含至少一个大写字母')
+    
+    if not re.search(r'[a-z]', password):
+        raise ValueError('密码必须包含至少一个小写字母')
+    
+    if not re.search(r'\d', password):
+        raise ValueError('密码必须包含至少一个数字')
+    
+    if not re.search(r'[!@#$%^&*()_+\-=\[\]{}|;:,.<>?]', password):
+        raise ValueError('密码必须包含至少一个特殊字符 (!@#$%^&*等)')
+    
+    return password
 
 
 class UserBase(BaseModel):
@@ -15,8 +45,13 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     """User creation schema"""
-    password: str = Field(..., min_length=6, description="密码")
+    password: str = Field(..., min_length=8, max_length=128, description="密码")
     sms_code: str | None = Field(None, description="短信验证码 - 注册时需要")
+    
+    @validator('password')
+    def validate_password(cls, v):
+        """验证密码强度"""
+        return validate_password_strength(v)
 
 
 class UserLogin(BaseModel):
@@ -36,9 +71,51 @@ class UserLogin(BaseModel):
 
 class UserUpdate(BaseModel):
     """User update schema"""
-    nickname: str | None = Field(None, description="昵称")
-    avatar_url: str | None = Field(None, description="头像URL")
+    nickname: str | None = Field(None, max_length=50, description="昵称")
+    avatar_url: str | None = Field(None, max_length=255, description="头像URL")
     settings: dict | None = Field(None, description="用户设置")
+    
+    @validator('nickname')
+    def validate_nickname(cls, v):
+        if v is not None and len(v.strip()) == 0:
+            raise ValueError('昵称不能为空')
+        return v.strip() if v else v
+
+
+class ChangePasswordRequest(BaseModel):
+    """修改密码请求（已登录用户）"""
+    old_password: str = Field(..., description="旧密码")
+    new_password: str = Field(..., min_length=8, max_length=128, description="新密码")
+    
+    @validator('new_password')
+    def validate_new_password(cls, v):
+        """验证新密码强度"""
+        return validate_password_strength(v)
+
+
+class ResetPasswordRequest(BaseModel):
+    """重置密码请求（忘记密码）"""
+    phone: str = Field(..., description="手机号")
+    sms_code: str = Field(..., description="短信验证码")
+    new_password: str = Field(..., min_length=8, max_length=128, description="新密码")
+    
+    @validator('new_password')
+    def validate_new_password(cls, v):
+        """验证新密码强度"""
+        return validate_password_strength(v)
+
+
+class ChangePhoneRequest(BaseModel):
+    """修改手机号请求"""
+    old_phone_sms_code: str = Field(..., description="旧手机号验证码")
+    new_phone: str = Field(..., description="新手机号")
+    new_phone_sms_code: str = Field(..., description="新手机号验证码")
+
+
+class DeleteAccountRequest(BaseModel):
+    """注销账号请求"""
+    sms_code: str = Field(..., description="短信验证码")
+    reason: str | None = Field(None, max_length=200, description="注销原因")
 
 
 class UserResponse(UserBase):
