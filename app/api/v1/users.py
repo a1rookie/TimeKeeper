@@ -176,13 +176,19 @@ async def login(
     user_repo: UserRepository = Depends(get_user_repository)
 ) -> ApiResponse[Token]:
     """
-    User login with session management
-    用户登录（支持单点登录/互踢机制）
+    User login with anti-brute-force protection
+    用户登录（支持单点登录/互踢机制 + 防暴力破解）
     
     Headers:
         X-Device-Type: 设备类型 (web/ios/android/desktop)
                       同一设备类型只能保持一个活跃会话
                       新登录会自动踢掉该设备类型的旧会话
+    
+    防暴力破解机制：
+        1. 3次失败后要求提供短信验证码
+        2. 5次失败后临时锁定账号15分钟
+        3. 10次失败后临时锁定账号1小时
+        4. 登录成功后清除失败记录
     
     Returns:
         ApiResponse[Token]: 统一响应格式，data 包含 access_token 和 token_type
@@ -195,15 +201,48 @@ async def login(
     # 获取客户端IP
     ip_address = request.client.host if request.client else None
     
-    # Find user
+    # ===== 1. 防暴力破解检查 =====
+    from app.services.anti_fraud_service import get_anti_fraud_service
+    anti_fraud = get_anti_fraud_service(db)
+    
+    is_allowed, error_msg, requires_sms = await anti_fraud.check_login_attempts(
+        identifier=user_data.phone,
+        ip_address=ip_address
+    )
+    
+    if not is_allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=error_msg
+        )
+    
+    # 如果需要短信验证码但没有提供
+    if requires_sms and not user_data.sms_code:
+        logger.warning(
+            "login_requires_sms_verification",
+            phone=user_data.phone,
+            ip=ip_address
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="登录失败次数过多，请使用短信验证码登录"
+        )
+    
+    # ===== 2. 查找用户 =====
     user = await user_repo.get_by_phone(user_data.phone)
     if not user:
+        # 记录登录失败
+        await anti_fraud.record_login_failure(
+            identifier=user_data.phone,
+            ip_address=ip_address,
+            reason="user_not_found"
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="手机号或密码错误"
         )
     
-    # 检查账号是否被封禁
+    # ===== 3. 检查账号是否被封禁 =====
     if user.is_banned:
         logger.warning(
             "banned_user_login_attempt",
@@ -217,12 +256,22 @@ async def login(
             detail=f"账号已被封禁：{user.ban_reason or '违反用户协议'}"
         )
     
-    # 验证登录凭证：密码或验证码
+    # ===== 4. 验证登录凭证：密码或验证码 =====
+    credentials_valid = False
+    
     if user_data.sms_code:
         # 验证码登录
         try:
             ok = await verify_code(user_data.phone, user_data.sms_code, purpose="login", db=db)
-            if not ok:
+            if ok:
+                credentials_valid = True
+            else:
+                # 验证码错误也算登录失败
+                await anti_fraud.record_login_failure(
+                    identifier=user_data.phone,
+                    ip_address=ip_address,
+                    reason="invalid_sms_code"
+                )
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="验证码错误或已过期"
@@ -234,10 +283,27 @@ async def login(
             )
     elif user_data.password:
         # 密码登录
-        if not verify_password(user_data.password, user.hashed_password):
+        if verify_password(user_data.password, user.hashed_password):
+            credentials_valid = True
+        else:
+            # 密码错误，记录失败
+            fail_info = await anti_fraud.record_login_failure(
+                identifier=user_data.phone,
+                ip_address=ip_address,
+                reason="invalid_password"
+            )
+            
+            # 根据失败次数给出不同提示
+            if fail_info["is_locked"]:
+                detail = f"密码错误次数过多，账号已被锁定{fail_info['lock_duration_minutes']}分钟"
+            elif fail_info["requires_sms"]:
+                detail = f"密码错误，已失败{fail_info['fail_count']}次，建议使用短信验证码登录"
+            else:
+                detail = "手机号或密码错误"
+            
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="手机号或密码错误"
+                detail=detail
             )
     else:
         raise HTTPException(
@@ -245,8 +311,12 @@ async def login(
             detail="必须提供密码或短信验证码"
         )
     
-    # 更新最后登录信息
-    user.last_login_at = datetime.now()
+    # ===== 5. 登录成功，清除失败记录 =====
+    if credentials_valid:
+        await anti_fraud.clear_login_failures(user_data.phone)
+    
+    # ===== 6. 更新最后登录信息 =====
+    user.last_login_at = datetime.datetime.now()
     user.last_login_ip = ip_address
     await db.commit()
     
