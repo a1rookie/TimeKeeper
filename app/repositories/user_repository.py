@@ -232,4 +232,19 @@ class UserRepository:
         await self.db.commit()
         await self.db.refresh(user)
         return user
-
+    
+    async def update_role(self, user: User, role: str) -> User:
+        """
+        更新用户角色
+        
+        Args:
+            user: 用户对象
+            role: 新角色
+        
+        Returns:
+            User: 更新后的用户对象
+        """
+        user.role = role
+        await self.db.commit()
+        await self.db.refresh(user)
+        return user

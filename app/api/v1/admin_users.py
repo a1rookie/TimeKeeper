@@ -49,10 +49,7 @@ async def set_user_role(
         )
     
     old_role = target_user.role
-    target_user.role = role
-    
-    await db.commit()
-    await db.refresh(target_user)
+    target_user = await user_repo.update_role(target_user, role)
     
     logger.warning(
         "admin_user_role_changed",

@@ -65,10 +65,10 @@ async def create_reminder(
         category=reminder_data.category,
         recurrence_type=reminder_data.recurrence_type,
         first_remind_time=reminder_data.first_remind_time,
-        recurrence_config=reminder_data.recurrence_config,
-        remind_channels=reminder_data.remind_channels,
-        advance_minutes=reminder_data.advance_minutes,
-        priority=reminder_data.priority,
+        recurrence_config=reminder_data.recurrence_config or {},
+        remind_channels=reminder_data.remind_channels or ["app"],
+        advance_minutes=reminder_data.advance_minutes or 0,
+        priority=reminder_data.priority or 1,
         amount=reminder_data.amount,
         location=reminder_data.location,
         attachments=reminder_data.attachments
@@ -275,12 +275,11 @@ async def complete_reminder(
         )
         
         # 更新下次提醒时间，并重置完成状态
-        reminder.next_remind_time = next_time 
-        reminder.last_remind_time = reminder.completed_at 
-        reminder.is_completed = False 
-        reminder.completed_at = None 
-        await db.commit()
-        await db.refresh(reminder)
+        reminder = await reminder_repo.reset_completion_and_update_next_time(
+            reminder,
+            next_time=next_time,
+            last_time=reminder.completed_at
+        )
         
         # 5. 创建新的推送任务
         await create_push_task_for_reminder(db, reminder) 
