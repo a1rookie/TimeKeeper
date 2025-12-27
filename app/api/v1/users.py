@@ -18,6 +18,7 @@ from app.schemas.user import UserCreate, UserLogin, UserResponse, Token, UserUpd
 from app.schemas.response import ApiResponse
 from app.services.sms_service import get_sms_service, generate_and_store_code, verify_code, update_sms_log_status
 import json
+import datetime
 from app.core.config import settings
 from app.repositories import get_user_repository
 from app.repositories.user_repository import UserRepository
@@ -30,56 +31,137 @@ router = APIRouter(prefix="/users", tags=["Users"])
 @router.post("/register", response_model=ApiResponse[UserResponse], status_code=status.HTTP_201_CREATED)
 async def register(
     user_data: UserCreate,
+    request: Request,
+    x_device_type: str | None = Header("web", alias="X-Device-Type"),
     db: AsyncSession = Depends(get_db),
     user_repo: UserRepository = Depends(get_user_repository)
 ) -> ApiResponse[UserResponse]:
     """
-    User registration
-    用户注册（需要短信验证码）
+    User registration with anti-fraud protection
+    用户注册（需要短信验证码，严格防刷）
+    
+    Headers:
+        X-Device-Type: 设备类型 (web/ios/android/desktop)
+    
+    防刷机制：
+        1. 手机号唯一性检查
+        2. 短信验证码验证（必需）
+        3. 同一IP每天最多注册5个账号
+        4. 同一IP两次注册间隔至少5分钟
+        5. User-Agent检测（防止爬虫）
+        6. IP黑名单检查
+        7. 记录注册审计信息
     
     Returns:
         ApiResponse[UserResponse]: 统一响应格式，data 为用户信息
     """
-    # Check if user exists
+    # 获取客户端IP和User-Agent
+    ip_address = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent")
+    device_type = x_device_type or "web"
+    
+    # ===== 1. 手机号唯一性检查 =====
     if await user_repo.exists_by_phone(user_data.phone):
+        logger.warning(
+            "registration_phone_exists",
+            phone=user_data.phone,
+            ip=ip_address
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="手机号已被注册"
         )
 
-    # 验证短信验证码（如果配置了SMS_PROVIDER）
-    if settings.SMS_PROVIDER:
-        if not user_data.sms_code:
+    # ===== 2. 短信验证码验证（强制要求） =====
+    if not settings.SMS_PROVIDER:
+        logger.warning("sms_provider_not_configured", action="registration_without_sms")
+    
+    if not user_data.sms_code:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="请提供短信验证码"
+        )
+    
+    try:
+        ok = await verify_code(user_data.phone, user_data.sms_code, purpose="register", db=db)
+        if not ok:
+            logger.warning(
+                "registration_invalid_sms_code",
+                phone=user_data.phone,
+                ip=ip_address
+            )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="请提供短信验证码"
+                detail="短信验证码错误或已过期"
             )
-        
-        try:
-            ok = await verify_code(user_data.phone, user_data.sms_code, purpose="register", db=db)
-            if not ok:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="短信验证码错误或已过期"
-                )
-        except RuntimeError as e:
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    
+    # ===== 3. 防刷检查 =====
+    from app.services.anti_fraud_service import get_anti_fraud_service
+    anti_fraud = get_anti_fraud_service(db)
+    
+    # 3.1 检查IP注册限制
+    if ip_address:
+        is_allowed, error_msg = await anti_fraud.check_ip_registration_limit(ip_address)
+        if not is_allowed:
+            logger.warning(
+                "registration_ip_limit_exceeded",
+                phone=user_data.phone,
+                ip=ip_address,
+                reason=error_msg
+            )
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=str(e)
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=error_msg
             )
-    # Create new user
+    
+    # 3.2 检查User-Agent是否可疑
+    if await anti_fraud.check_user_agent_suspicious(user_agent):
+        logger.warning(
+            "registration_suspicious_user_agent",
+            phone=user_data.phone,
+            ip=ip_address,
+            user_agent=user_agent
+        )
+        # 可疑UA不直接拒绝，但记录日志供后续分析
+        # 如果需要严格控制，可以在这里直接拒绝
+    
+    # ===== 4. 创建新用户（包含审计信息） =====
     hashed_password = get_password_hash(user_data.password)
-    new_user = await user_repo.create(
+    
+    # 直接使用SQLAlchemy创建，包含审计字段
+    from app.models.user import User
+    new_user = User(
         phone=user_data.phone,
         nickname=user_data.nickname,
-        hashed_password=hashed_password
+        hashed_password=hashed_password,
+        registration_ip=ip_address,
+        registration_user_agent=user_agent,
+        registration_source=device_type,
+        is_verified=True,  # 通过短信验证即认为已验证
+        is_active=True,
+        is_banned=False
     )
-    # 记录用户注册事件
+    
+    db.add(new_user)
+    await db.commit()
+    await db.refresh(new_user)
+    
+    # ===== 5. 记录注册事件 =====
+    await anti_fraud.record_registration(ip_address or "unknown")
+    
     logger.info(
         "user_registered",
         user_id=new_user.id,
         phone=user_data.phone,
-        nickname=user_data.nickname
+        nickname=user_data.nickname,
+        registration_ip=ip_address,
+        registration_source=device_type,
+        user_agent_length=len(user_agent) if user_agent else 0
     )
     
     return ApiResponse[UserResponse].success(data=new_user, message="注册成功")
@@ -88,6 +170,7 @@ async def register(
 @router.post("/login", response_model=ApiResponse[Token])
 async def login(
     user_data: UserLogin,
+    request: Request,
     x_device_type: str | None = Header("web", alias="X-Device-Type"),
     db: AsyncSession = Depends(get_db),
     user_repo: UserRepository = Depends(get_user_repository)
@@ -109,6 +192,9 @@ async def login(
         - 同一设备类型的新登录会踢掉旧会话
         - 被踢掉的设备会在下次请求时收到401错误
     """
+    # 获取客户端IP
+    ip_address = request.client.host if request.client else None
+    
     # Find user
     user = await user_repo.get_by_phone(user_data.phone)
     if not user:
@@ -116,6 +202,21 @@ async def login(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="手机号或密码错误"
         )
+    
+    # 检查账号是否被封禁
+    if user.is_banned:
+        logger.warning(
+            "banned_user_login_attempt",
+            user_id=user.id,
+            phone=user_data.phone,
+            ban_reason=user.ban_reason,
+            ip=ip_address
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"账号已被封禁：{user.ban_reason or '违反用户协议'}"
+        )
+    
     # 验证登录凭证：密码或验证码
     if user_data.sms_code:
         # 验证码登录
@@ -143,6 +244,11 @@ async def login(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="必须提供密码或短信验证码"
         )
+    
+    # 更新最后登录信息
+    user.last_login_at = datetime.now()
+    user.last_login_ip = ip_address
+    await db.commit()
     
     # 验证设备类型
     from typing import cast
@@ -199,7 +305,8 @@ async def login(
         user_id=user.id,
         device_type=device_type,
         jti=jti[:8] + "...",
-        phone=user.phone
+        phone=user.phone,
+        ip=ip_address
     )
     return ApiResponse[Token].success(data=token_data, message="登录成功")
 
