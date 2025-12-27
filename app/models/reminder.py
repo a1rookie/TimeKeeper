@@ -20,11 +20,12 @@ if TYPE_CHECKING:
 
 class RecurrenceType(str, enum.Enum):
     """周期类型枚举"""
-    DAILY = "daily"
-    WEEKLY = "weekly"
-    MONTHLY = "monthly"
-    YEARLY = "yearly"
-    CUSTOM = "custom"
+    ONCE = "once"          # 单次提醒
+    DAILY = "daily"        # 每日
+    WEEKLY = "weekly"      # 每周
+    MONTHLY = "monthly"    # 每月
+    YEARLY = "yearly"      # 每年
+    CUSTOM = "custom"      # 自定义
 
 
 class ReminderCategory(str, enum.Enum):

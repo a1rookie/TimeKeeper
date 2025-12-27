@@ -160,3 +160,28 @@ class ReminderRepository:
         
         result = await self.db.execute(query)
         return result.scalar()
+    
+    async def reset_completion_and_update_next_time(
+        self, 
+        reminder: Reminder, 
+        next_time: datetime, 
+        last_time: datetime | None = None
+    ) -> Reminder:
+        """
+        重置完成状态并更新下次提醒时间（用于周期性提醒完成后）
+        
+        Args:
+            reminder: 提醒对象
+            next_time: 下次提醒时间
+            last_time: 上次提醒时间
+        
+        Returns:
+            Reminder: 更新后的提醒对象
+        """
+        reminder.next_remind_time = next_time
+        reminder.last_remind_time = last_time
+        reminder.is_completed = False
+        reminder.completed_at = None
+        await self.db.commit()
+        await self.db.refresh(reminder)
+        return reminder

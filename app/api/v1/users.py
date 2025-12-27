@@ -21,7 +21,6 @@ from app.schemas.user import (
 from app.schemas.response import ApiResponse
 from app.services.sms_service import get_sms_service, generate_and_store_code, verify_code, update_sms_log_status
 import json
-import datetime
 from app.core.config import settings
 from app.repositories import get_user_repository
 from app.repositories.user_repository import UserRepository
