@@ -23,14 +23,24 @@ logger = structlog.get_logger(__name__)
 
 
 class AntiFraudService:
-    """注册防刷服务"""
+    """注册防刷和登录保护服务"""
     
-    # 限制配置（可通过环境变量配置）
+    # 注册限制配置（可通过环境变量配置）
     MAX_REGISTRATIONS_PER_IP_PER_DAY = 5  # 每个IP每天最多注册5个
     REGISTRATION_INTERVAL_SECONDS = 300  # 同一IP两次注册间隔至少5分钟
     IP_BLACKLIST_PREFIX = "ip_blacklist:"
     IP_REGISTRATION_COUNTER_PREFIX = "ip_reg_count:"
     IP_LAST_REGISTRATION_PREFIX = "ip_last_reg:"
+    
+    # 登录保护配置
+    LOGIN_FAIL_PREFIX = "login_fail:"  # 登录失败计数前缀
+    LOGIN_LOCK_PREFIX = "login_lock:"  # 账号锁定前缀
+    MAX_LOGIN_ATTEMPTS_BEFORE_SMS = 3  # 3次失败后要求短信验证
+    MAX_LOGIN_ATTEMPTS_BEFORE_LOCK = 5  # 5次失败后锁定15分钟
+    MAX_LOGIN_ATTEMPTS_BEFORE_LONG_LOCK = 10  # 10次失败后锁定1小时
+    SHORT_LOCK_DURATION = 900  # 15分钟（秒）
+    LONG_LOCK_DURATION = 3600  # 1小时（秒）
+    LOGIN_FAIL_WINDOW = 1800  # 登录失败计数窗口：30分钟
     
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -224,6 +234,193 @@ class AntiFraudService:
             f"registrations_last_{days}_days": days_count,
             "is_blacklisted": await self.is_ip_blacklisted(ip_address),
             "recent_users": recent_users
+        }
+    
+    # ==================== 登录保护功能 ====================
+    
+    async def check_login_attempts(
+        self,
+        identifier: str,
+        ip_address: str | None = None
+    ) -> tuple[bool, str, bool]:
+        """
+        检查登录尝试次数
+        
+        Args:
+            identifier: 账号标识（手机号）
+            ip_address: IP地址（可选）
+            
+        Returns:
+            (is_allowed, error_message, requires_sms)
+            - is_allowed: 是否允许登录
+            - error_message: 错误信息
+            - requires_sms: 是否要求短信验证码
+        """
+        if not self.redis:
+            logger.warning(
+                "login_protection_disabled_redis_unavailable",
+                identifier=identifier,
+                ip=ip_address
+            )
+            return True, "", False
+        
+        # 检查账号是否被锁定
+        lock_key = f"{self.LOGIN_LOCK_PREFIX}{identifier}"
+        if self.redis.exists(lock_key):
+            ttl = self.redis.ttl(lock_key)
+            minutes = (ttl + 59) // 60  # 向上取整
+            logger.warning(
+                "login_attempt_on_locked_account",
+                identifier=identifier,
+                ip=ip_address,
+                ttl_seconds=ttl
+            )
+            return False, f"账号已被临时锁定，请{minutes}分钟后再试", False
+        
+        # 获取失败次数
+        fail_key = f"{self.LOGIN_FAIL_PREFIX}{identifier}"
+        fail_count = int(self.redis.get(fail_key) or 0)
+        
+        # 判断是否需要短信验证码
+        requires_sms = fail_count >= self.MAX_LOGIN_ATTEMPTS_BEFORE_SMS
+        
+        logger.info(
+            "login_attempts_check",
+            identifier=identifier,
+            ip=ip_address,
+            fail_count=fail_count,
+            requires_sms=requires_sms
+        )
+        
+        return True, "", requires_sms
+    
+    async def record_login_failure(
+        self,
+        identifier: str,
+        ip_address: str | None = None,
+        reason: str = "invalid_credentials"
+    ) -> dict:
+        """
+        记录登录失败
+        
+        Returns:
+            {
+                "fail_count": 3,
+                "is_locked": False,
+                "lock_duration_minutes": 0,
+                "requires_sms": True
+            }
+        """
+        if not self.redis:
+            logger.warning(
+                "login_failure_tracking_disabled_redis_unavailable",
+                identifier=identifier,
+                ip=ip_address
+            )
+            return {
+                "fail_count": 0,
+                "is_locked": False,
+                "lock_duration_minutes": 0,
+                "requires_sms": False
+            }
+        
+        fail_key = f"{self.LOGIN_FAIL_PREFIX}{identifier}"
+        
+        # 增加失败计数
+        fail_count = self.redis.incr(fail_key)
+        
+        # 设置过期时间（如果是第一次失败）
+        if fail_count == 1:
+            self.redis.expire(fail_key, self.LOGIN_FAIL_WINDOW)
+        
+        is_locked = False
+        lock_duration_minutes = 0
+        
+        # 检查是否需要锁定
+        if fail_count >= self.MAX_LOGIN_ATTEMPTS_BEFORE_LONG_LOCK:
+            # 10次失败：锁定1小时
+            lock_duration = self.LONG_LOCK_DURATION
+            lock_duration_minutes = 60
+            is_locked = True
+        elif fail_count >= self.MAX_LOGIN_ATTEMPTS_BEFORE_LOCK:
+            # 5次失败：锁定15分钟
+            lock_duration = self.SHORT_LOCK_DURATION
+            lock_duration_minutes = 15
+            is_locked = True
+        
+        if is_locked:
+            lock_key = f"{self.LOGIN_LOCK_PREFIX}{identifier}"
+            self.redis.setex(lock_key, lock_duration, str(fail_count))
+            logger.warning(
+                "account_temporarily_locked",
+                identifier=identifier,
+                ip=ip_address,
+                fail_count=fail_count,
+                lock_duration_minutes=lock_duration_minutes,
+                reason=reason
+            )
+        
+        requires_sms = fail_count >= self.MAX_LOGIN_ATTEMPTS_BEFORE_SMS
+        
+        logger.warning(
+            "login_failure_recorded",
+            identifier=identifier,
+            ip=ip_address,
+            fail_count=fail_count,
+            requires_sms=requires_sms,
+            reason=reason
+        )
+        
+        return {
+            "fail_count": fail_count,
+            "is_locked": is_locked,
+            "lock_duration_minutes": lock_duration_minutes,
+            "requires_sms": requires_sms
+        }
+    
+    async def clear_login_failures(self, identifier: str) -> None:
+        """清除登录失败记录（登录成功后调用）"""
+        if not self.redis:
+            return
+        
+        fail_key = f"{self.LOGIN_FAIL_PREFIX}{identifier}"
+        self.redis.delete(fail_key)
+        
+        logger.info("login_failures_cleared", identifier=identifier)
+    
+    async def get_login_status(self, identifier: str) -> dict:
+        """
+        获取账号登录状态
+        
+        Returns:
+            {
+                "is_locked": False,
+                "fail_count": 2,
+                "lock_ttl_seconds": 0,
+                "requires_sms": False
+            }
+        """
+        if not self.redis:
+            return {
+                "is_locked": False,
+                "fail_count": 0,
+                "lock_ttl_seconds": 0,
+                "requires_sms": False
+            }
+        
+        lock_key = f"{self.LOGIN_LOCK_PREFIX}{identifier}"
+        fail_key = f"{self.LOGIN_FAIL_PREFIX}{identifier}"
+        
+        is_locked = self.redis.exists(lock_key) > 0
+        lock_ttl = self.redis.ttl(lock_key) if is_locked else 0
+        fail_count = int(self.redis.get(fail_key) or 0)
+        requires_sms = fail_count >= self.MAX_LOGIN_ATTEMPTS_BEFORE_SMS
+        
+        return {
+            "is_locked": is_locked,
+            "fail_count": fail_count,
+            "lock_ttl_seconds": lock_ttl,
+            "requires_sms": requires_sms
         }
 
 
