@@ -675,10 +675,10 @@ async def search_marketplace_templates(
     return ApiResponse[List[TemplateShareDetail]].success(data=result, message=f"找到 {len(result)} 个匹配模板")
 
 
-@router.get("/marketplace/categories", response_model=ApiResponse[List[Dict[str, int]]])
+@router.get("/marketplace/categories", response_model=ApiResponse[List[Dict[str, str | int]]])
 async def get_marketplace_categories(
     db: AsyncSession = Depends(get_db)
-) -> ApiResponse[List[Dict[str, int]]]:
+) -> ApiResponse[List[Dict[str, str | int]]]:
     """
     获取模板市场分类统计
     """
@@ -706,9 +706,9 @@ async def get_marketplace_categories(
         category_stats[category] += 1
     
     # 转换为列表
-    result: List[Dict[str, int]] = [
+    result: List[Dict[str, str | int]] = [
         {"category": cat, "count": count}
         for cat, count in sorted(category_stats.items(), key=lambda x: x[1], reverse=True)
     ]
     
-    return ApiResponse[List[Dict[str, int]]].success(data=result)
+    return ApiResponse[List[Dict[str, str | int]]].success(data=result)

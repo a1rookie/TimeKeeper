@@ -3,26 +3,89 @@ Reminder Schemas
 提醒相关的 Pydantic 模型
 """
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import List
-from datetime import datetime
+from datetime import datetime, timezone
+import enum
 from app.models.reminder import RecurrenceType, ReminderCategory
 from app.core.config import settings
 
 
 class ReminderBase(BaseModel):
-    """Reminder base schema"""
-    title: str = Field(..., max_length=200, description="提醒标题")
-    description: str | None = Field(None, max_length=1000, description="提醒描述")
-    category: ReminderCategory = Field(..., description="分类")
-    priority: int = Field(default=1, ge=1, le=3, description="优先级: 1=普通, 2=重要, 3=紧急")
-    recurrence_type: RecurrenceType = Field(default=RecurrenceType.ONCE, description="周期类型")
-    recurrence_config: dict = Field(default_factory=dict, description="周期配置")
-    remind_channels: List[str] = Field(default=["app"], description="提醒渠道: app, sms, wechat, call")
-    advance_minutes: int = Field(default=0, ge=0, description="提前提醒分钟数")
-    amount: int | None = Field(None, description="金额（分）")
-    location: dict | None = Field(None, description="位置信息")
-    attachments: List[dict] | None = Field(None, description="附件列表")
+    """Reminder base schema - 提醒基础字段"""
+    
+    model_config = ConfigDict(
+        use_enum_values=True,  # 使用枚举的值而不是名称
+        json_encoders={
+            datetime: lambda v: v.isoformat() if v else None
+        }
+    )
+    
+    # ========== 基本信息 ==========
+    title: str = Field(
+        ..., 
+        max_length=200, 
+        description="提醒标题（必填，最多200字）- 例如：'交房租'、'吃药提醒'"
+    )
+    description: str | None = Field(
+        None, 
+        max_length=1000, 
+        description="提醒详细描述（可选，最多1000字）- 用于补充说明提醒内容"
+    )
+    
+    # ========== 分类与优先级 ==========
+    category: ReminderCategory = Field(
+        ..., 
+        description="提醒分类（必填）- 可选值：rent(居住), health(健康), pet(宠物), finance(财务), document(证件), memorial(纪念), other(其他)"
+    )
+    priority: int = Field(
+        default=1, 
+        ge=1, 
+        le=3, 
+        description="优先级（1-3）- 1=普通（蓝色）, 2=重要（橙色）, 3=紧急（红色）"
+    )
+    
+    # ========== 周期设置 ==========
+    recurrence_type: RecurrenceType = Field(
+        default="once", 
+        description="周期类型 - 可选值：once(单次), daily(每天), weekly(每周), monthly(每月), yearly(每年), custom(自定义间隔)"
+    )
+    recurrence_config: dict = Field(
+        default_factory=dict, 
+        description="""周期配置（JSON对象）- 根据类型提供不同配置：
+weekly: {\"weekdays\": [1,3,5]} (周一三五)
+monthly: {\"days\": [1,15]} (每月1号和15号)
+yearly: {\"month\": 12, \"day\": 25} (每年12月25日)
+custom: {\"interval\": 3, \"unit\": \"days\"} (每3天)
+once/daily: {} (无需配置)"""
+    )
+    
+    # ========== 提醒设置 ==========
+    remind_channels: List[str] = Field(
+        default=["app"], 
+        description="""提醒渠道（数组，可多选）- app:APP推送(免费,默认), sms:短信(付费), wechat:微信服务号(需绑定), call:语音电话(付费)"""
+    )
+    advance_minutes: int = Field(
+        default=0, 
+        ge=0, 
+        description="提前提醒分钟数 - 0:到点提醒, 30:提前30分钟, 60:提前1小时, 1440:提前1天"
+    )
+    
+    # ========== 可选扩展信息 ==========
+    amount: int | None = Field(
+        None, 
+        description="金额（以分为单位）- 用于财务类提醒，如房租3000元存储为300000"
+    )
+    location: dict | None = Field(
+        None, 
+        description="""位置信息（可选）- 格式：{\"latitude\": 39.9042, \"longitude\": 116.4074, \"address\": \"北京市朝阳区xxx\"}
+注意：经纬度必须同时提供或都不提供，latitude范围-90到90，longitude范围-180到180"""
+    )
+    attachments: List[dict] | None = Field(
+        None, 
+        description="""附件列表（可选，最多10个，单个最大50MB）- 格式：[{\"file_id\": \"uuid\", \"file_name\": \"合同.pdf\", \"file_size\": 1024000, \"file_type\": \"application/pdf\", \"file_url\": \"https://...\"}]
+使用流程：1.先调用 POST /api/v1/attachments/upload 上传文件 2.获得file_id和file_url 3.创建提醒时传入附件信息"""
+    )
     
     @field_validator('remind_channels')
     @classmethod
@@ -192,15 +255,105 @@ class ReminderBase(BaseModel):
                     raise ValueError(f"附件 {idx} 的文件大小不能超过 {max_mb}MB")
         
         return v
+    
+    @field_validator('category', 'recurrence_type', mode='before')
+    @classmethod
+    def convert_enum_to_lowercase(cls, v):
+        """
+        枚举值预处理：强制转换为小写
+        
+        问题：数据库的ENUM类型是小写（'once', 'rent'），但前端可能传大写
+        解决：在Pydantic验证之前，先将字符串转为小写
+        """
+        if v is None:
+            return v
+        if isinstance(v, str):
+            return v.lower()  # "ONCE" -> "once", "RENT" -> "rent"
+        if isinstance(v, enum.Enum):
+            return v.value.lower() if isinstance(v.value, str) else v.value
+        if hasattr(v, 'value'):
+            val = v.value  # 如果已经是枚举对象，提取其值
+            return val.lower() if isinstance(val, str) else val
+        return v
 
 
 class ReminderCreate(ReminderBase):
-    """Reminder creation schema"""
-    first_remind_time: datetime = Field(..., description="首次提醒时间")
+    """Reminder creation schema - 创建提醒
+    
+    时区处理说明：
+    - 前端可传入任何格式的 ISO 8601 时间（带时区或不带时区）
+    - 后端自动转换为 UTC 时间存储
+    - 推荐格式："2025-12-31T10:00:00Z" (UTC) 或 "2025-12-31T18:00:00+08:00" (北京时间)
+    """
+    first_remind_time: datetime = Field(
+        ..., 
+        description="""首次提醒时间（必填，ISO 8601格式）
+支持格式：
+  - "2025-12-31T10:00:00Z" (UTC时间，推荐)
+  - "2025-12-31T18:00:00+08:00" (带时区)
+  - "2025-12-31T10:00:00" (无时区，视为UTC)
+注意：必须是未来时间"""
+    )
+    
+    @field_validator('first_remind_time', mode='after')
+    @classmethod
+    def normalize_datetime(cls, v: datetime) -> datetime:
+        """统一时区处理：将任何格式的 datetime 转换为 UTC naive datetime（数据库格式）"""
+        if v.tzinfo is not None:
+            # 有时区：转换为 UTC 并移除时区信息
+            return v.astimezone(timezone.utc).replace(tzinfo=None)
+        # 无时区：假定为 UTC
+        return v
+    
+    class Config:
+        json_schema_extra = {
+            "examples": [
+                {
+                    "title": "交房租",
+                    "description": "每月1号前交给房东",
+                    "category": "rent",
+                    "priority": 2,
+                    "recurrence_type": "monthly",
+                    "recurrence_config": {"days": [1]},
+                    "remind_channels": ["app", "sms"],
+                    "advance_minutes": 1440,
+                    "amount": 300000,
+                    "first_remind_time": "2025-01-01T09:00:00Z"
+                },
+                {
+                    "title": "吃药提醒",
+                    "description": "早中晚各一次",
+                    "category": "health",
+                    "priority": 3,
+                    "recurrence_type": "daily",
+                    "remind_channels": ["app"],
+                    "first_remind_time": "2025-12-28T08:00:00Z"
+                },
+                {
+                    "title": "周会提醒",
+                    "category": "other",
+                    "recurrence_type": "weekly",
+                    "recurrence_config": {"weekdays": [1]},
+                    "advance_minutes": 30,
+                    "first_remind_time": "2025-12-30T14:00:00+08:00"
+                }
+            ],
+            "description": """
+时区处理说明：
+- 前端可以传入任何格式的 ISO 8601 时间（带时区或不带）
+- 推荐格式：\"2025-12-31T10:00:00Z\" (UTC) 或 \"2025-12-31T18:00:00+08:00\" (北京时间)
+- 后端自动转换为 UTC 时间存储
+- 枚举值使用小写字符串（如 \"once\", \"daily\" 等）
+            """
+        }
 
 
 class ReminderUpdate(ReminderBase):
-    """Reminder update schema"""
+    """
+    Reminder update schema - 更新提醒
+    
+    所有字段均可选，仅更新提供的字段，未提供的字段保持原值不变
+    """
     title: str | None = Field(None, max_length=200, description="提醒标题")
     description: str | None = Field(None, max_length=1000, description="提醒描述")
     category: ReminderCategory | None = Field(None, description="分类")
@@ -212,8 +365,18 @@ class ReminderUpdate(ReminderBase):
     amount: int | None = Field(None, description="金额（以分为单位）")
     location: dict | None = Field(None, description="位置信息")
     attachments: List[dict] | None = Field(None, description="附件列表")
-    is_active: bool | None = Field(None, description="是否启用")
-    is_completed: bool | None = Field(None, description="是否已完成")
+    is_active: bool | None = Field(None, description="是否启用 - false表示暂停提醒")
+    is_completed: bool | None = Field(None, description="是否已完成 - true表示标记为完成")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "title": "交房租（已改为每月5号）",
+                "recurrence_config": {"days": [5]},
+                "advance_minutes": 2880
+            },
+            "description": "更新示例：PUT /api/v1/reminders/123 只传入需要修改的字段，如 {\"advance_minutes\": 60, \"remind_channels\": [\"app\", \"sms\"]}，其他字段保持不变"
+        }
     
     @field_validator('remind_channels')
     @classmethod
@@ -340,29 +503,129 @@ class ReminderUpdate(ReminderBase):
 
 
 class ReminderResponse(ReminderBase):
-    """Reminder response schema"""
-    id: int
-    user_id: int
-    first_remind_time: datetime
-    next_remind_time: datetime
-    last_remind_time: datetime | None = None
-    is_active: bool
-    is_completed: bool = False
-    completed_at: datetime | None = None
-    created_at: datetime
-    updated_at: datetime
+    """
+    Reminder response schema - 提醒响应
+    
+    返回提醒的完整信息，包括系统生成的字段
+    """
+    id: int = Field(description="提醒ID（唯一标识）")
+    user_id: int = Field(description="创建者用户ID")
+    
+    # 时间信息
+    first_remind_time: datetime = Field(description="首次提醒时间")
+    next_remind_time: datetime = Field(description="下次提醒时间（由系统自动计算）")
+    last_remind_time: datetime | None = Field(None, description="上次提醒时间（首次提醒前为null）")
+    
+    # 状态信息
+    is_active: bool = Field(description="是否启用 - false表示已暂停")
+    is_completed: bool = Field(default=False, description="是否已完成")
+    completed_at: datetime | None = Field(None, description="完成时间")
+    
+    # 审计时间
+    created_at: datetime = Field(description="创建时间")
+    updated_at: datetime = Field(description="最后更新时间")
     
     class Config:
         from_attributes = True
+        json_schema_extra = {
+            "example": {
+                "id": 123,
+                "user_id": 1,
+                "title": "交房租",
+                "description": "每月1号前交给房东",
+                "category": "rent",
+                "priority": 2,
+                "recurrence_type": "monthly",
+                "recurrence_config": {"days": [1]},
+                "remind_channels": ["app", "sms"],
+                "advance_minutes": 1440,
+                "amount": 300000,
+                "location": None,
+                "attachments": None,
+                "first_remind_time": "2025-01-01T09:00:00",
+                "next_remind_time": "2025-02-01T09:00:00",
+                "last_remind_time": "2025-01-01T09:00:00",
+                "is_active": True,
+                "is_completed": False,
+                "completed_at": None,
+                "created_at": "2024-12-01T10:00:00",
+                "updated_at": "2024-12-28T15:30:00"
+            }
+        }
 
 
 class VoiceReminderCreate(BaseModel):
-    """Voice input reminder creation schema"""
-    audio_base64: str = Field(..., description="Base64编码的音频数据")
-    audio_format: str = Field(default="wav", description="音频格式")
+    """
+    Voice input reminder creation schema - 语音创建提醒
+    
+    用户通过语音输入创建提醒，后端使用ASR+NLU解析
+    """
+    audio_base64: str = Field(
+        ..., 
+        description="Base64编码的音频数据（必填）- 前端录音后转为Base64字符串传入"
+    )
+    audio_format: str = Field(
+        default="wav", 
+        description="音频格式（默认wav）- 支持格式：wav, mp3, m4a"
+    )
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "audio_base64": "UklGRiQAAABXQVZFZm10IBAAAAABAAEA...",
+                "audio_format": "wav"
+            },
+            "description": """语音创建提醒流程：
+1. 前端录音（3-10秒）
+2. 转为Base64编码
+3. 调用 POST /api/v1/reminders/voice
+4. 后端ASR识别 → NLU解析 → 自动创建提醒
+5. 返回创建的提醒信息
+
+示例语音：\"明天上午9点提醒我开会\" / \"每周一下午3点提醒我写周报\" / \"12月31号提醒我交房租3000元\""""
+        }
 
 
 class QuickReminderCreate(BaseModel):
-    """Quick reminder creation from template"""
-    template_id: str = Field(..., description="模板ID")
-    custom_data: dict = Field(default_factory=dict, description="自定义数据")
+    """
+    Quick reminder creation from template - 从模板快速创建提醒
+    
+    选择系统模板或自定义模板，一键创建提醒
+    """
+    template_id: str = Field(
+        ..., 
+        description="""模板ID（必填）- 可通过以下接口获取：
+GET /api/v1/templates/system - 系统模板
+GET /api/v1/templates/custom - 我的自定义模板"""
+    )
+    custom_data: dict = Field(
+        default_factory=dict, 
+        description="""自定义数据（可选）- 覆盖模板的默认值
+格式：{\"first_remind_time\": \"2025-12-31T09:00:00\", \"amount\": 300000, \"description\": \"自定义描述\"}"""
+    )
+    
+    class Config:
+        json_schema_extra = {
+            "examples": [
+                {
+                    "template_id": "template_rent_monthly",
+                    "custom_data": {
+                        "first_remind_time": "2025-01-01T09:00:00",
+                        "amount": 300000
+                    }
+                },
+                {
+                    "template_id": "template_medicine_daily",
+                    "custom_data": {
+                        "first_remind_time": "2025-12-28T08:00:00"
+                    }
+                }
+            ],
+            "description": """快速创建流程：
+1. 浏览模板列表
+2. 选择模板
+3. 可选：自定义部分字段（如时间、金额）
+4. 一键创建
+
+示例模板：交房租（每月1号）/ 吃药提醒（每天）/ 宠物疫苗（每年）/ 信用卡还款（每月）"""
+        }
