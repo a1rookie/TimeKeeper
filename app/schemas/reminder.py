@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import List
 from datetime import datetime, timezone
 import enum
-from app.models.reminder import RecurrenceType, ReminderCategory
+from app.models.reminder import RecurrenceType, RECOMMENDED_CATEGORIES
 from app.core.config import settings
 
 
@@ -34,9 +34,14 @@ class ReminderBase(BaseModel):
     )
     
     # ========== 分类与优先级 ==========
-    category: ReminderCategory = Field(
-        ..., 
-        description="提醒分类（必填）- 可选值：rent(居住), health(健康), pet(宠物), finance(财务), document(证件), memorial(纪念), other(其他)"
+    category: str = Field(
+        ...,
+        min_length=1,
+        max_length=50,
+        description="""提醒分类（必填，支持自定义）- 
+推荐分类：rent(居住), health(健康), pet(宠物), finance(财务), document(证件), memorial(纪念), 
+work(工作), study(学习), life(生活), entertainment(娱乐), shopping(购物), social(社交), other(其他)
+也可以输入自定义分类，如：运动、阅读、旅行等（1-50个字符）"""
     )
     priority: int = Field(
         default=1, 
@@ -72,20 +77,42 @@ once/daily: {} (无需配置)"""
     )
     
     # ========== 可选扩展信息 ==========
-    amount: int | None = Field(
-        None, 
-        description="金额（以分为单位）- 用于财务类提醒，如房租3000元存储为300000"
+    amount: float | None = Field(
+        None,
+        ge=0,
+        description="金额（以元为单位）- 用于财务类提醒，如房租 3000.00 元、买菜 50.5 元"
     )
-    location: dict | None = Field(
-        None, 
-        description="""位置信息（可选）- 格式：{\"latitude\": 39.9042, \"longitude\": 116.4074, \"address\": \"北京市朝阳区xxx\"}
-注意：经纬度必须同时提供或都不提供，latitude范围-90到90，longitude范围-180到180"""
+    location: str | None = Field(
+        None,
+        max_length=200,
+        description="位置信息（可选）- 简单文本地址，如'小区超市'、'公司食堂'、'健身房'、'北京市朝阳区xxx'"
     )
-    attachments: List[dict] | None = Field(
-        None, 
-        description="""附件列表（可选，最多10个，单个最大50MB）- 格式：[{\"file_id\": \"uuid\", \"file_name\": \"合同.pdf\", \"file_size\": 1024000, \"file_type\": \"application/pdf\", \"file_url\": \"https://...\"}]
-使用流程：1.先调用 POST /api/v1/attachments/upload 上传文件 2.获得file_id和file_url 3.创建提醒时传入附件信息"""
+    notes: str | None = Field(
+        None,
+        max_length=500,
+        description="备注信息（可选）- 用于记录额外说明，如'记得带会员卡'、'提前预约'"
     )
+    
+    @field_validator('category')
+    @classmethod
+    def validate_category(cls, v: str) -> str:
+        """验证分类格式"""
+        if not v or not v.strip():
+            raise ValueError("分类不能为空")
+        
+        # 去除首尾空格
+        v = v.strip()
+        
+        # 长度验证
+        if len(v) > 50:
+            raise ValueError("分类长度不能超过50个字符")
+        
+        # 推荐使用预设分类，但不强制（仅记录日志）
+        if v not in RECOMMENDED_CATEGORIES:
+            # 这里可以添加日志记录用户使用了自定义分类
+            pass
+        
+        return v
     
     @field_validator('remind_channels')
     @classmethod
@@ -153,106 +180,6 @@ once/daily: {} (无需配置)"""
                 raise ValueError("'interval' 必须是正整数")
             if unit not in ['days', 'weeks', 'months', 'years']:
                 raise ValueError("'unit' 必须是 'days', 'weeks', 'months' 或 'years'")
-        
-        return v
-    
-    @field_validator('location')
-    @classmethod
-    def validate_location(cls, v: dict | None) -> dict | None:
-        """验证位置信息格式（仅在有值时验证）"""
-        if v is None:
-            return None
-        
-        # 如果提供了经纬度，必须同时提供且在有效范围内
-        has_lat = 'latitude' in v
-        has_lng = 'longitude' in v
-        
-        if has_lat or has_lng:
-            if not (has_lat and has_lng):
-                raise ValueError("latitude 和 longitude 必须同时提供")
-            
-            lat = v['latitude']
-            lng = v['longitude']
-            
-            if not isinstance(lat, (int, float)) or not -90 <= lat <= 90:
-                raise ValueError("latitude 必须在 -90 到 90 之间")
-            if not isinstance(lng, (int, float)) or not -180 <= lng <= 180:
-                raise ValueError("longitude 必须在 -180 到 180 之间")
-        
-        # address 字段长度限制
-        if 'address' in v:
-            address = str(v['address'])
-            if len(address) > 500:
-                raise ValueError("address 长度不能超过 500 字符")
-            if len(address.strip()) == 0:
-                raise ValueError("address 不能为空字符串")
-        
-        return v
-    
-    @field_validator('attachments')
-    @classmethod
-    def validate_attachments(cls, v: List[dict] | None) -> List[dict] | None:
-        """
-        验证附件列表（仅在有值时验证）
-        
-        附件格式：
-        [
-            {
-                "file_id": "uuid-string",           # 文件ID（上传后返回）
-                "file_name": "合同.pdf",            # 文件名
-                "file_size": 1024000,               # 文件大小（字节）
-                "file_type": "application/pdf",     # MIME类型
-                "file_url": "https://..."           # 访问URL
-            }
-        ]
-        
-        工作流程：
-        1. 前端先调用文件上传接口 POST /api/v1/attachments/upload
-        2. 后端保存文件并返回 file_id 和 file_url
-        3. 创建提醒时将文件信息传入 attachments 字段
-        """
-        if v is None:
-            return None
-        
-        if not isinstance(v, list):
-            raise ValueError("attachments 必须是数组")
-        
-        if len(v) == 0:
-            return None  # 空数组等同于 None
-        
-        # 限制附件数量
-        if len(v) > settings.MAX_ATTACHMENTS_PER_REMINDER:
-            raise ValueError(f"附件数量不能超过 {settings.MAX_ATTACHMENTS_PER_REMINDER} 个")
-        
-        # 验证每个附件的格式
-        for idx, attachment in enumerate(v):
-            if not isinstance(attachment, dict):
-                raise ValueError(f"附件 {idx} 格式错误，必须是对象")
-            
-            # file_id 是必需的（上传后获得）
-            if 'file_id' not in attachment:
-                raise ValueError(f"附件 {idx} 缺少 file_id 字段（请先上传文件）")
-            
-            # file_url 是必需的
-            if 'file_url' not in attachment:
-                raise ValueError(f"附件 {idx} 缺少 file_url 字段")
-            
-            # 文件名验证
-            if 'file_name' in attachment:
-                name = str(attachment['file_name'])
-                if len(name) > 255:
-                    raise ValueError(f"附件 {idx} 的文件名长度不能超过 255 字符")
-                if len(name.strip()) == 0:
-                    raise ValueError(f"附件 {idx} 的文件名不能为空")
-            
-            # 文件大小验证
-            if 'file_size' in attachment:
-                size = attachment['file_size']
-                if not isinstance(size, int) or size <= 0:
-                    raise ValueError(f"附件 {idx} 的 file_size 必须是正整数")
-                if size > settings.MAX_ATTACHMENT_SIZE:
-                    max_mb = settings.MAX_ATTACHMENT_SIZE // (1024 * 1024)
-                    raise ValueError(f"附件 {idx} 的文件大小不能超过 {max_mb}MB")
         
         return v
     
@@ -356,7 +283,7 @@ class ReminderUpdate(ReminderBase):
     """
     title: str | None = Field(None, max_length=200, description="提醒标题")
     description: str | None = Field(None, max_length=1000, description="提醒描述")
-    category: ReminderCategory | None = Field(None, description="分类")
+    category: str | None = Field(None, min_length=1, max_length=50, description="分类（支持自定义）")
     priority: int | None = Field(None, ge=1, le=3, description="优先级")
     recurrence_type: RecurrenceType | None = Field(None, description="周期类型")
     recurrence_config: dict | None = Field(None, description="周期配置")
