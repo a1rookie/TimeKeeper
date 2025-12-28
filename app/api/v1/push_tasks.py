@@ -45,12 +45,15 @@ async def list_push_tasks(
         reminder_id=reminder_id
     )
     
-    return ApiResponse[PushTaskList].success(data={
-        "tasks": tasks,
-        "total": total,
-        "skip": skip,
-        "limit": limit
-    })
+    # 将 PushTask 模型转换为 PushTaskResponse
+    task_responses = [PushTaskResponse.model_validate(task) for task in tasks]
+    
+    return ApiResponse[PushTaskList].success(data=PushTaskList(
+        tasks=task_responses,
+        total=total,
+        skip=skip,
+        limit=limit
+    ))
 
 
 @router.get("/{task_id}", response_model=ApiResponse[PushTaskResponse])

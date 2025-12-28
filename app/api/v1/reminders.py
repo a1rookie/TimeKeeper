@@ -65,12 +65,23 @@ async def create_reminder(
     )
     
     # 1. 验证首次提醒时间不能早于当前时间
-    from datetime import datetime as dt
-    if reminder_data.first_remind_time < dt.now():
+    from datetime import datetime as dt, timezone
+    
+    # 确保 first_remind_time 是 naive datetime（UTC）
+    first_remind_time = reminder_data.first_remind_time
+    if first_remind_time.tzinfo is not None:
+        # 如果 validator 没生效，这里再转换一次
+        first_remind_time = first_remind_time.astimezone(timezone.utc).replace(tzinfo=None)
+        reminder_data.first_remind_time = first_remind_time
+    
+    # 获取当前 UTC 时间（naive）
+    now_utc = dt.now(timezone.utc).replace(tzinfo=None)
+    
+    if first_remind_time < now_utc:
         logger.warning(
             "reminder_create_invalid_time",
             user_id=current_user.id,
-            first_remind_time=reminder_data.first_remind_time
+            first_remind_time=first_remind_time
         )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -158,7 +169,11 @@ async def get_reminders(
         limit=limit,
         is_active=is_active
     )
-    return ApiResponse[List[ReminderResponse]].success(data=reminders)
+    
+    # 将 Reminder 模型转换为 ReminderResponse
+    reminder_responses = [ReminderResponse.model_validate(r) for r in reminders]
+    
+    return ApiResponse[List[ReminderResponse]].success(data=reminder_responses)
 
 
 @router.get("/{reminder_id}", response_model=ApiResponse[ReminderResponse])
@@ -397,7 +412,11 @@ async def get_reminder_completions(
     
     # 获取完成记录
     completions = await completion_repo.get_by_reminder(reminder_id, skip, limit)
-    return ApiResponse[List[ReminderCompletionResponse]].success(data=completions)
+    
+    # 将 ReminderCompletion 模型转换为 ReminderCompletionResponse
+    completion_responses = [ReminderCompletionResponse.model_validate(c) for c in completions]
+    
+    return ApiResponse[List[ReminderCompletionResponse]].success(data=completion_responses)
 
 
 @router.post("/voice", response_model=ApiResponse[ReminderResponse], status_code=status.HTTP_201_CREATED)
@@ -740,7 +759,3 @@ async def create_quick_reminder(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"从模板创建提醒失败: {str(e)}"
         )
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="模板功能待实现"
-    )
