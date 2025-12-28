@@ -26,10 +26,10 @@ if TYPE_CHECKING:
 
 
 class UserRole(str, enum.Enum):
-    """用户角色枚举"""
-    USER = "user"              # 普通用户
-    ADMIN = "admin"            # 管理员
-    SUPER_ADMIN = "super_admin"  # 超级管理员
+    """用户角色枚举 - 使用大写符合 Python 常量规范"""
+    USER = "USER"              # 普通用户
+    ADMIN = "ADMIN"            # 管理员
+    SUPER_ADMIN = "SUPER_ADMIN"  # 超级管理员
 
 
 class User(Base):

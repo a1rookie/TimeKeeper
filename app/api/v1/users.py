@@ -4,7 +4,7 @@ User API Endpoints
 """
 
 from typing import Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, status, Header, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Header, Request, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import (
     get_password_hash, 
@@ -497,11 +497,34 @@ async def update_current_user(
     Update current user
     更新当前用户信息
     
+    Settings 更新规则：
+        - 增量合并：只更新提供的字段，不影响其他字段
+        - 例如：只更新 theme，其他通知设置保持不变
+    
     Returns:
         ApiResponse[UserResponse]: 统一响应格式，data 为更新后的用户信息
     """
-    # Update user fields
+    # 处理 settings 的增量更新（合并而非覆盖）
     update_fields = user_data.model_dump(exclude_unset=True)
+    
+    if "settings" in update_fields and update_fields["settings"] is not None:
+        # 获取当前 settings
+        current_settings = current_user.settings or {}
+        # 将新 settings 转为 dict（Pydantic 模型转字典）
+        new_settings = update_fields["settings"]
+        if hasattr(new_settings, 'model_dump'):
+            new_settings = new_settings.model_dump(exclude_unset=True)
+        
+        # 增量合并：只更新提供的字段
+        merged_settings = {**current_settings, **new_settings}
+        update_fields["settings"] = merged_settings
+        
+        logger.info(
+            "user_settings_merged",
+            user_id=current_user.id,
+            updated_keys=list(new_settings.keys())
+        )
+    
     updated_user = await user_repo.update(current_user, **update_fields)
     
     logger.info(
@@ -511,6 +534,85 @@ async def update_current_user(
     )
     
     return ApiResponse[UserResponse].success(data=updated_user, message="更新成功")
+
+
+@router.post("/me/avatar", response_model=ApiResponse[Dict[str, str]])
+async def upload_avatar(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_active_user),
+    user_repo: UserRepository = Depends(get_user_repository)
+) -> ApiResponse[Dict[str, str]]:
+    """
+    Upload user avatar
+    上传用户头像
+    
+    限制：
+        - 允许的格式：JPEG, PNG, GIF, WebP
+        - 最大大小：5MB
+        - 自动覆盖旧头像（不保留历史）
+    
+    Returns:
+        ApiResponse[Dict]: 包含 avatar_url
+    """
+    # 允许的头像格式
+    ALLOWED_AVATAR_TYPES = {
+        "image/jpeg",
+        "image/png",
+        "image/gif",
+        "image/webp"
+    }
+    
+    # 验证文件类型
+    if file.content_type not in ALLOWED_AVATAR_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"不支持的文件格式，仅支持: {', '.join(ALLOWED_AVATAR_TYPES)}"
+        )
+    
+    # 验证文件大小（5MB）
+    MAX_AVATAR_SIZE = 5 * 1024 * 1024
+    file_content = await file.read()
+    if len(file_content) > MAX_AVATAR_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="头像文件不能超过 5MB"
+        )
+    
+    # 保存头像
+    try:
+        from app.services.storage_service import storage_service
+        
+        file_id, file_url = await storage_service.save_file(
+            file_content=file_content,
+            file_name=f"avatar_{current_user.id}_{file.filename}",
+            content_type=file.content_type,
+            user_id=current_user.id
+        )
+        
+        # 更新用户头像URL
+        await user_repo.update(current_user, avatar_url=file_url)
+        
+        logger.info(
+            "avatar_uploaded",
+            user_id=current_user.id,
+            file_id=file_id,
+            file_size=len(file_content)
+        )
+        
+        return ApiResponse[Dict[str, str]].success(
+            data={"avatar_url": file_url},
+            message="头像上传成功"
+        )
+    except Exception as e:
+        logger.error(
+            "avatar_upload_failed",
+            user_id=current_user.id,
+            error=str(e)
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"头像上传失败: {str(e)}"
+        )
 
 
 @router.put("/me/password", response_model=ApiResponse[Dict[str, str]])
