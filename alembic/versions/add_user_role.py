@@ -20,14 +20,14 @@ def upgrade():
     """添加用户角色字段"""
     # 创建枚举类型（PostgreSQL需要）
     # 如果使用MySQL/SQLite，会自动转换为VARCHAR
-    op.execute("CREATE TYPE userrole AS ENUM ('user', 'admin', 'super_admin')")
+    op.execute("CREATE TYPE userrole AS ENUM ('USER', 'ADMIN', 'SUPER_ADMIN')")
     
-    # 添加角色字段，默认为user
+    # 添加角色字段，默认为USER（大写符合Python枚举规范）
     op.add_column('users', 
         sa.Column('role', 
-                  sa.Enum('user', 'admin', 'super_admin', name='userrole'),
+                  sa.Enum('USER', 'ADMIN', 'SUPER_ADMIN', name='userrole'),
                   nullable=False,
-                  server_default='user',
+                  server_default='USER',
                   comment='用户角色')
     )
     

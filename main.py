@@ -130,18 +130,43 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     """
     # 提取第一个错误信息
     error_msg = "参数验证失败"
-    if exc.errors():
-        first_error = exc.errors()[0]
-        field = " -> ".join(str(loc) for loc in first_error.get("loc", []))
-        msg = first_error.get("msg", "")
-        error_msg = f"{field}: {msg}"
+    errors_list = []
+    
+    try:
+        for error in exc.errors():
+            # 安全地提取错误信息
+            field = " -> ".join(str(loc) for loc in error.get("loc", []))
+            msg = error.get("msg", "")
+            error_type = error.get("type", "")
+            
+            # 处理 ctx 中可能包含的异常对象
+            ctx = error.get("ctx", {})
+            if isinstance(ctx, dict):
+                # 将所有值转为字符串，避免 JSON 序列化错误
+                ctx = {k: str(v) for k, v in ctx.items()}
+            
+            errors_list.append({
+                "field": field,
+                "message": msg,
+                "type": error_type,
+                "ctx": ctx
+            })
+        
+        # 使用第一个错误作为主错误信息
+        if errors_list:
+            error_msg = f"{errors_list[0]['field']}: {errors_list[0]['message']}"
+    
+    except Exception as e:
+        logger.error(f"Error processing validation errors: {e}")
+        error_msg = "参数验证失败"
+        errors_list = [{"message": str(exc)}]
     
     return JSONResponse(
         status_code=422,
         content={
             "code": 422,
             "message": error_msg,
-            "data": {"errors": exc.errors()}
+            "data": {"errors": errors_list}
         }
     )
 
