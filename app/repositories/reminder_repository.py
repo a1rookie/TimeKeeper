@@ -8,7 +8,7 @@ from collections.abc import Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, select
 from datetime import datetime
-from app.models.reminder import Reminder, ReminderCategory, RecurrenceType
+from app.models.reminder import Reminder, RecurrenceType
 
 
 class ReminderRepository:
@@ -42,7 +42,7 @@ class ReminderRepository:
         skip: int = 0, 
         limit: int = 100,
         is_active: bool | None = None,
-        category: ReminderCategory | None = None
+        category: str | None = None
     ) -> Sequence[Reminder]:
         """获取用户的提醒列表"""
         query = select(Reminder).filter(Reminder.user_id == user_id)
@@ -61,7 +61,7 @@ class ReminderRepository:
         self,
         user_id: int,
         title: str,
-        category: ReminderCategory,
+        category: str,
         recurrence_type: RecurrenceType,
         first_remind_time: datetime,
         description: str | None = None,
@@ -69,9 +69,9 @@ class ReminderRepository:
         remind_channels: List[str] | None= None,
         advance_minutes: int = 0,
         priority: int = 1,
-        amount: int | None = None,
-        location: dict | None = None,
-        attachments: list | None = None
+        amount: float | None = None,
+        location: str | None = None,
+        notes: str | None = None
     ) -> Reminder:
         """创建新提醒"""
         new_reminder = Reminder(
@@ -88,7 +88,7 @@ class ReminderRepository:
             priority=priority,
             amount=amount,
             location=location,
-            attachments=attachments
+            notes=notes
         )
         
         self.db.add(new_reminder)

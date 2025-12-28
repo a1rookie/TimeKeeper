@@ -116,7 +116,7 @@ async def create_reminder(
         priority=reminder_data.priority or 1,
         amount=reminder_data.amount,
         location=reminder_data.location,
-        attachments=reminder_data.attachments
+        notes=reminder_data.notes
     )
     
     logger.info(
@@ -520,7 +520,7 @@ async def create_voice_reminder(
             priority=parsed_intent.get("priority", 1),
             amount=parsed_intent.get("amount"),
             location=parsed_intent.get("location"),
-            attachments=parsed_intent.get("attachments")
+            notes=parsed_intent.get("notes")
         )
         
         # 4. 创建提醒（使用依赖注入的 reminder_repo）
@@ -537,7 +537,7 @@ async def create_voice_reminder(
             priority=reminder_data.priority,
             amount=reminder_data.amount,
             location=reminder_data.location,
-            attachments=reminder_data.attachments
+            notes=reminder_data.notes
         )
         
         logger.info(
@@ -683,17 +683,14 @@ async def create_quick_reminder(
                 detail="必须提供 first_remind_time（首次提醒时间）"
             )
         
-        from app.models.reminder import ReminderCategory
-        
         template_name = str(template.name)  
         template_desc = str(template.description) if hasattr(template, 'description') and template.description else None  
         template_category_str = str(template.category)  
-        template_category = ReminderCategory(template_category_str)
         
         reminder_data = ReminderCreate(
             title=custom_data.get("title", template_name),
             description=custom_data.get("description", template_desc),
-            category=template_category,
+            category=template_category_str,
             recurrence_type=custom_data.get(
                 "recurrence_type",
                 getattr(template, "default_recurrence_type", "once")
@@ -711,7 +708,7 @@ async def create_quick_reminder(
             remind_channels=custom_data.get("remind_channels", ["app"]),
             amount=custom_data.get("amount"),
             location=custom_data.get("location"),
-            attachments=custom_data.get("attachments")
+            notes=custom_data.get("notes")
         )
         
         # 创建提醒（使用依赖注入的 reminder_repo）
@@ -730,7 +727,7 @@ async def create_quick_reminder(
             priority=reminder_data.priority,
             amount=reminder_data.amount,
             location=reminder_data.location,
-            attachments=reminder_data.attachments
+            notes=reminder_data.notes
         )
         
         logger.info(

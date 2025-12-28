@@ -28,15 +28,22 @@ class RecurrenceType(str, enum.Enum):
     CUSTOM = "custom"      # 自定义
 
 
-class ReminderCategory(str, enum.Enum):
-    """提醒分类枚举"""
-    RENT = "rent"          # 居住类
-    HEALTH = "health"      # 健康类
-    PET = "pet"            # 宠物类
-    FINANCE = "finance"    # 财务类
-    DOCUMENT = "document"  # 证件类
-    MEMORIAL = "memorial"  # 纪念类
-    OTHER = "other"        # 其他
+# 推荐的分类常量（用户可以使用这些，也可以自定义）
+RECOMMENDED_CATEGORIES = {
+    "rent": "居住类",
+    "health": "健康类",
+    "pet": "宠物类",
+    "finance": "财务类",
+    "document": "证件类",
+    "memorial": "纪念类",
+    "work": "工作类",
+    "study": "学习类",
+    "life": "生活类",
+    "entertainment": "娱乐类",
+    "shopping": "购物类",
+    "social": "社交类",
+    "other": "其他"
+}
 
 
 class Reminder(Base):
@@ -51,7 +58,7 @@ class Reminder(Base):
     # Basic info
     title: Mapped[str] = mapped_column(String(200), comment="提醒标题")
     description: Mapped[str | None] = mapped_column(String(1000), nullable=True, comment="提醒描述")
-    category: Mapped[ReminderCategory] = mapped_column(SQLEnum(ReminderCategory), comment="分类")
+    category: Mapped[str] = mapped_column(String(50), index=True, comment="分类（用户可自定义）")
     priority: Mapped[int] = mapped_column(default=1, comment="优先级: 1=普通, 2=重要, 3=紧急")
     
     # Recurrence configuration
@@ -68,9 +75,9 @@ class Reminder(Base):
     advance_minutes: Mapped[int] = mapped_column(default=0, comment="提前提醒分钟数")
     
     # Extended fields
-    amount: Mapped[int | None] = mapped_column(nullable=True, comment="金额(分)")
-    location: Mapped[Dict[str, Any] | None] = mapped_column(type_=JSON, nullable=True, comment="位置信息")
-    attachments: Mapped[List[Dict[str, Any]] | None] = mapped_column(type_=JSON, nullable=True, comment="附件列表")
+    amount: Mapped[float | None] = mapped_column(nullable=True, comment="金额(元)")
+    location: Mapped[str | None] = mapped_column(String(200), nullable=True, comment="位置信息(文本地址)")
+    notes: Mapped[str | None] = mapped_column(String(500), nullable=True, comment="备注信息")
     
     # Status
     is_active: Mapped[bool] = mapped_column(default=True, index=True, comment="是否启用")
