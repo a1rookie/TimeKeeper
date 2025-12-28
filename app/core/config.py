@@ -82,6 +82,21 @@ class Settings(BaseSettings):
     
     # NLU 通用配置
     NLU_CONFIDENCE_THRESHOLD: float = 0.7  # 意图识别置信度阈值
+    
+    # ===== 提醒业务配置 =====
+    MAX_ACTIVE_REMINDERS: int = 1000  # 每个用户最多活跃提醒数
+    MAX_ATTACHMENTS_PER_REMINDER: int = 10  # 每个提醒最多附件数
+    MAX_ATTACHMENT_SIZE: int = 50 * 1024 * 1024  # 单个附件最大大小 50MB
+    
+    # ===== 文件存储配置 =====
+    STORAGE_TYPE: str = "local"  # local | aliyun_oss | tencent_cos | aws_s3
+    UPLOAD_DIR: str = "uploads/attachments"  # 本地存储目录
+    
+    # 阿里云OSS配置（当 STORAGE_TYPE=aliyun_oss 时使用）
+    ALIYUN_OSS_ACCESS_KEY_ID: str | None = None
+    ALIYUN_OSS_ACCESS_KEY_SECRET: str | None = None
+    ALIYUN_OSS_ENDPOINT: str | None = None  # 例如: oss-cn-beijing.aliyuncs.com
+    ALIYUN_OSS_BUCKET_NAME: str | None = None
 
     # 字符串环境变量可能包含行内注释（例如: "300  # 注释"），下面的验证器会在解析前去掉注释
     @field_validator(
@@ -94,6 +109,9 @@ class Settings(BaseSettings):
         "ASR_MAX_AUDIO_SIZE",
         "DEEPSEEK_TIMEOUT",
         "DEEPSEEK_MAX_TOKENS",
+        "MAX_ACTIVE_REMINDERS",
+        "MAX_ATTACHMENTS_PER_REMINDER",
+        "MAX_ATTACHMENT_SIZE",
         mode="before",
     )
     def _parse_int_fields(cls, v):

@@ -8,6 +8,7 @@ from typing import List, Dict, Any
 import structlog
 
 from app.core.security import get_current_active_user
+from app.core.config import settings
 from app.models.user import User
 from app.schemas.response import ApiResponse
 from app.schemas.reminder import (
@@ -46,6 +47,12 @@ async def create_reminder(
     Create a new reminder
     创建新提醒
     
+    业务逻辑：
+    1. 验证提醒时间（不能早于当前时间）
+    2. 检查用户提醒数量限制（防止滥用）
+    3. 创建提醒记录
+    4. 创建推送任务
+    
     Returns:
         ApiResponse[ReminderResponse]: 统一响应格式，data 为创建的提醒
     """
@@ -57,7 +64,34 @@ async def create_reminder(
         recurrence_type=reminder_data.recurrence_type
     )
     
-    # 使用Repository创建提醒
+    # 1. 验证首次提醒时间不能早于当前时间
+    from datetime import datetime as dt
+    if reminder_data.first_remind_time < dt.now():
+        logger.warning(
+            "reminder_create_invalid_time",
+            user_id=current_user.id,
+            first_remind_time=reminder_data.first_remind_time
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="首次提醒时间不能早于当前时间"
+        )
+    
+    # 2. 检查用户活跃提醒数量限制（防止滥用）
+    active_count = await reminder_repo.count_user_reminders(current_user.id, is_active=True)
+    if active_count and active_count >= settings.MAX_ACTIVE_REMINDERS:
+        logger.warning(
+            "reminder_create_limit_exceeded",
+            user_id=current_user.id,
+            active_count=active_count,
+            limit=settings.MAX_ACTIVE_REMINDERS
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"活跃提醒数量已达上限（{settings.MAX_ACTIVE_REMINDERS}个），请删除不需要的提醒后再创建"
+        )
+    
+    # 3. 使用Repository创建提醒
     new_reminder = await reminder_repo.create(
         user_id=current_user.id, 
         title=reminder_data.title,
@@ -78,8 +112,27 @@ async def create_reminder(
         "reminder_created",
         reminder_id=new_reminder.id,
         user_id=current_user.id,
-        title=new_reminder.title
+        title=new_reminder.title,
+        next_remind_time=new_reminder.next_remind_time
     )
+    
+    # 4. 创建推送任务
+    try:
+        push_task = await create_push_task_for_reminder(db, new_reminder)
+        if push_task:
+            logger.info(
+                "reminder_push_task_created",
+                reminder_id=new_reminder.id,
+                push_task_id=push_task.id,
+                scheduled_time=push_task.scheduled_time
+            )
+    except Exception as e:
+        logger.error(
+            "reminder_push_task_creation_failed",
+            reminder_id=new_reminder.id,
+            error=str(e)
+        )
+        # 推送任务创建失败不影响提醒创建，仅记录错误
     
     return ApiResponse[ReminderResponse].success(data=new_reminder, message="创建成功")
 
