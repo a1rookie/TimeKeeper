@@ -6,6 +6,7 @@ Reminder API Endpoints
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Form
 from typing import List, Dict, Any
 import structlog
+from datetime import timedelta
 
 from app.core.security import get_current_active_user
 from app.core.config import settings
@@ -102,7 +103,30 @@ async def create_reminder(
             detail=f"活跃提醒数量已达上限（{settings.MAX_ACTIVE_REMINDERS}个），请删除不需要的提醒后再创建"
         )
     
-    # 3. 使用Repository创建提醒
+    # 3. 检查是否存在重复提醒（5分钟以内不允许创建）
+    duplicate = await reminder_repo.check_duplicate(
+        user_id=current_user.id,
+        title=reminder_data.title,
+        category=reminder_data.category,
+        remind_time=first_remind_time,
+        time_window_minutes=5
+    )
+    
+    if duplicate:
+        logger.warning(
+            "reminder_create_duplicate_rejected",
+            user_id=current_user.id,
+            title=reminder_data.title,
+            new_time=first_remind_time,
+            duplicate_id=duplicate.id,
+            duplicate_time=duplicate.next_remind_time
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"已存在相似的提醒（#{duplicate.id}），时间：{duplicate.next_remind_time.strftime('%Y-%m-%d %H:%M')}，不允许在5分钟内创建重复提醒"
+        )
+    
+    # 4. 使用Repository创建提醒
     new_reminder = await reminder_repo.create(
         user_id=current_user.id, 
         title=reminder_data.title,
@@ -127,7 +151,7 @@ async def create_reminder(
         next_remind_time=new_reminder.next_remind_time
     )
     
-    # 4. 创建推送任务
+    # 5. 创建推送任务
     try:
         push_task = await create_push_task_for_reminder(db, new_reminder)
         if push_task:
