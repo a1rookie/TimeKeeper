@@ -7,7 +7,7 @@ from typing import List, Any
 from collections.abc import Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, select
-from datetime import datetime
+from datetime import datetime, timedelta
 from app.models.reminder import Reminder, RecurrenceType
 
 
@@ -56,6 +56,52 @@ class ReminderRepository:
         query = query.order_by(Reminder.next_remind_time).offset(skip).limit(limit)
         result = await self.db.execute(query)
         return result.scalars().all()
+    
+    async def check_duplicate(
+        self,
+        user_id: int,
+        title: str,
+        category: str,
+        remind_time: datetime,
+        time_window_minutes: int = 5
+    ) -> Reminder | None:
+        """
+        检查是否存在重复提醒
+        
+        判断标准：
+        - 同一用户
+        - 相同标题
+        - 相同分类
+        - 时间在指定窗口内（默认±5分钟）
+        - 提醒处于活跃状态
+        
+        Args:
+            user_id: 用户ID
+            title: 提醒标题
+            category: 分类
+            remind_time: 提醒时间
+            time_window_minutes: 时间窗口（分钟）
+            
+        Returns:
+            如果存在重复，返回重复的提醒对象；否则返回None
+        """
+        time_window = timedelta(minutes=time_window_minutes)
+        time_start = remind_time - time_window
+        time_end = remind_time + time_window
+        
+        result = await self.db.execute(
+            select(Reminder).where(
+                and_(
+                    Reminder.user_id == user_id,
+                    Reminder.title == title,
+                    Reminder.category == category,
+                    Reminder.is_active == True,
+                    Reminder.next_remind_time >= time_start,
+                    Reminder.next_remind_time <= time_end
+                )
+            ).limit(1)
+        )
+        return result.scalar_one_or_none()
     
     async def create(
         self,
