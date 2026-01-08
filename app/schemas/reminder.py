@@ -52,7 +52,7 @@ work(工作), study(学习), life(生活), entertainment(娱乐), shopping(购�
     
     # ========== 周期设置 ==========
     recurrence_type: RecurrenceType = Field(
-        default="once", 
+        default=RecurrenceType.ONCE, 
         description="周期类型 - 可选值：once(单次), daily(每天), weekly(每周), monthly(每月), yearly(每年), custom(自定义间隔)"
     )
     recurrence_config: dict = Field(
@@ -281,19 +281,19 @@ class ReminderUpdate(ReminderBase):
     
     所有字段均可选，仅更新提供的字段，未提供的字段保持原值不变
     """
-    title: str | None = Field(None, max_length=200, description="提醒标题")
-    description: str | None = Field(None, max_length=1000, description="提醒描述")
-    category: str | None = Field(None, min_length=1, max_length=50, description="分类（支持自定义）")
-    priority: int | None = Field(None, ge=1, le=3, description="优先级")
-    recurrence_type: RecurrenceType | None = Field(None, description="周期类型")
-    recurrence_config: dict | None = Field(None, description="周期配置")
-    remind_channels: List[str] | None = Field(None, description="提醒渠道")
-    advance_minutes: int | None = Field(None, ge=0, description="提前提醒分钟数")
-    amount: int | None = Field(None, description="金额（以分为单位）")
-    location: dict | None = Field(None, description="位置信息")
-    attachments: List[dict] | None = Field(None, description="附件列表")
-    is_active: bool | None = Field(None, description="是否启用 - false表示暂停提醒")
-    is_completed: bool | None = Field(None, description="是否已完成 - true表示标记为完成")
+    title: str | None = Field(default=None, max_length=200, description="提醒标题")
+    description: str | None = Field(default=None, max_length=1000, description="提醒描述")
+    category: str | None = Field(default=None, min_length=1, max_length=50, description="分类（支持自定义）")
+    priority: int | None = Field(default=None, ge=1, le=3, description="优先级")
+    recurrence_type: RecurrenceType | None = Field(default=None, description="周期类型")
+    recurrence_config: dict | None = Field(default=None, description="周期配置")
+    remind_channels: List[str] | None = Field(default=None, description="提醒渠道")
+    advance_minutes: int | None = Field(default=None, ge=0, description="提前提醒分钟数")
+    amount: int | None = Field(default=None, description="金额（以分为单位）")
+    location: dict | None = Field(default=None, description="位置信息")
+    attachments: List[dict] | None = Field(default=None, description="附件列表")
+    is_active: bool | None = Field(default=None, description="是否启用 - false表示暂停提醒")
+    is_completed: bool | None = Field(default=None, description="是否已完成 - true表示标记为完成")
     
     class Config:
         json_schema_extra = {
